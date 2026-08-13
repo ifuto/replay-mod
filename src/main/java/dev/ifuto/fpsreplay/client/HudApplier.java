@@ -155,7 +155,7 @@ public final class HudApplier {
             return ItemStack.EMPTY;
         }
         try {
-            NbtElement nbt = StringNbtReader.parse(snbt);
+            NbtElement nbt = StringNbtReader.readCompound(snbt);
             return ItemStack.CODEC
                     .parse(world.getRegistryManager().getOps(NbtOps.INSTANCE), nbt)
                     .result()

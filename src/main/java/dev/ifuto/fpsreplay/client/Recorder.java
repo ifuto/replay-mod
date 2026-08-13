@@ -64,7 +64,7 @@ public final class Recorder implements AutoCloseable {
         File file = new File(dir, name + ".fpr");
 
         ReplayMetadata meta = new ReplayMetadata(
-                SharedConstants.getGameVersion().getId(),
+                SharedConstants.getGameVersion().id(),
                 name,
                 resolveSeed(client),
                 20,

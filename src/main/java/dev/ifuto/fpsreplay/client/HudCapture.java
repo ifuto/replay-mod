@@ -11,7 +11,6 @@ import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NbtElement;
 import net.minecraft.nbt.NbtOps;
-import net.minecraft.nbt.StringNbtReader;
 import net.minecraft.registry.Registries;
 import net.minecraft.scoreboard.Scoreboard;
 import net.minecraft.scoreboard.ScoreboardDisplaySlot;
@@ -128,7 +127,7 @@ public final class HudCapture {
                     .encodeStart(world.getRegistryManager().getOps(NbtOps.INSTANCE), stack)
                     .result()
                     .orElse(null);
-            return nbt == null ? "" : nbt.asString();
+            return nbt == null ? "" : nbt.toString();
         } catch (Throwable t) {
             return "";
         }
