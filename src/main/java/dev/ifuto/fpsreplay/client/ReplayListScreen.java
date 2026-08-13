@@ -13,8 +13,9 @@ import java.util.Comparator;
 import java.util.List;
 
 /**
- * A simple screen listing saved replays. Clicking a row previews it in-game;
- * export is available via {@code /replay render}.
+ * A screen listing saved replays. Each row has a "プレビュー" (preview) and
+ * "出力" (export) button — so playback and rendering can be driven entirely
+ * from the GUI, no commands required.
  */
 public final class ReplayListScreen extends Screen {
     private final Screen parent;
@@ -37,10 +38,18 @@ public final class ReplayListScreen extends Screen {
         sorted.sort(Comparator.comparingLong(File::lastModified).reversed());
 
         int y = 34;
+        int rowWidth = 300;
+        int left = width / 2 - rowWidth / 2;
         for (File f : sorted) {
             String label = f.getName();
-            addDrawableChild(ButtonWidget.builder(Text.literal("▶ " + label), b -> preview(f))
-                    .dimensions(width / 2 - 150, y, 300, 20)
+            addDrawableChild(ButtonWidget.builder(Text.literal(label), b -> preview(f))
+                    .dimensions(left, y, rowWidth - 118, 20)
+                    .build());
+            addDrawableChild(ButtonWidget.builder(Text.translatable("gui.flash-replay.preview"), b -> preview(f))
+                    .dimensions(left + rowWidth - 114, y, 54, 20)
+                    .build());
+            addDrawableChild(ButtonWidget.builder(Text.translatable("gui.flash-replay.export"), b -> export(f))
+                    .dimensions(left + rowWidth - 56, y, 56, 20)
                     .build());
             y += 24;
         }
@@ -59,6 +68,10 @@ public final class ReplayListScreen extends Screen {
         }
     }
 
+    private void export(File f) {
+        MinecraftClient.getInstance().setScreen(new ExportScreen(this, f));
+    }
+
     @Override
     public void close() {
         MinecraftClient.getInstance().setScreen(parent);
@@ -68,9 +81,6 @@ public final class ReplayListScreen extends Screen {
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
         renderBackground(context, mouseX, mouseY, delta);
         context.drawCenteredTextWithShadow(textRenderer, title, width / 2, 14, 0xFFFFFF);
-        context.drawCenteredTextWithShadow(textRenderer,
-                Text.translatable("gui.flash-replay.export_hint"),
-                width / 2, height - 46, 0xAAAAAA);
         super.render(context, mouseX, mouseY, delta);
     }
 }

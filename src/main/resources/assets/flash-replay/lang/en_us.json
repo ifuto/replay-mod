@@ -5,6 +5,15 @@
   "gui.flash-replay.record_start": "● Record",
   "gui.flash-replay.record_stop": "■ Stop Recording",
   "gui.flash-replay.back": "Back",
+  "gui.flash-replay.preview": "Preview",
+  "gui.flash-replay.export": "Export",
+  "gui.flash-replay.export_screen": "Export Settings",
+  "gui.flash-replay.resolution": "Resolution",
+  "gui.flash-replay.framerate": "Framerate",
+  "gui.flash-replay.format": "Format",
+  "gui.flash-replay.start_export": "Start Export",
+  "gui.flash-replay.cancel": "Cancel",
+  "gui.flash-replay.exporting": "Exporting... please wait",
   "gui.flash-replay.preview_hint": "Preview: Space=play/pause  ←/→=seek  Esc=exit",
   "gui.flash-replay.export_hint": "Export: /replay render <name> <WxH> <fps> [mp4|png]"
 }
