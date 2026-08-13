@@ -1,6 +1,8 @@
 package dev.ifuto.fpsreplay.mixin;
 
 import dev.ifuto.fpsreplay.client.Renderer;
+import dev.ifuto.fpsreplay.client.TabListOverlay;
+import dev.ifuto.fpsreplay.replay.HudState;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.hud.InGameHud;
@@ -11,21 +13,30 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * Draws the preview timeline / controls overlay at the bottom of the screen
- * while a replay is being previewed.
+ * Draws the recorded tab (player list) overlay and the preview timeline
+ * controls while a replay is being previewed or exported.
  */
 @Mixin(InGameHud.class)
 public abstract class InGameHudMixin {
 
     @Inject(method = "render", at = @At("RETURN"))
-    private void fpsreplay$previewOverlay(DrawContext context, RenderTickCounter tickCounter, CallbackInfo ci) {
-        if (!Renderer.isPreviewing()) {
-            return;
-        }
+    private void fpsreplay$overlays(DrawContext context, RenderTickCounter tickCounter, CallbackInfo ci) {
         MinecraftClient client = MinecraftClient.getInstance();
-        String status = Renderer.previewStatus();
-        int y = client.getWindow().getScaledHeight() - 14;
-        context.drawTextWithShadow(client.textRenderer, "REPLAY  " + status, 4, y, 0xFFFFFF);
-        context.drawTextWithShadow(client.textRenderer, "Space: play/pause   ←/→: seek   Esc: exit", 4, y - 12, 0xAAAAAA);
+
+        // Recorded tab player list — only when the player had it open.
+        if (Renderer.isRendering()) {
+            HudState hud = Renderer.currentHud();
+            if (hud != null && hud.playerListVisible) {
+                TabListOverlay.render(context, client.getWindow().getScaledWidth(), hud);
+            }
+        }
+
+        // Preview timeline / controls.
+        if (Renderer.isPreviewing()) {
+            String status = Renderer.previewStatus();
+            int y = client.getWindow().getScaledHeight() - 14;
+            context.drawTextWithShadow(client.textRenderer, "REPLAY  " + status, 4, y, 0xFFFFFF);
+            context.drawTextWithShadow(client.textRenderer, "Space: play/pause   \u2190/\u2192: seek   Esc: exit", 4, y - 12, 0xAAAAAA);
+        }
     }
 }

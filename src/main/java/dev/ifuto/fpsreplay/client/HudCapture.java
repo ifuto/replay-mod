@@ -49,6 +49,7 @@ public final class HudCapture {
         h.experienceProgress = player.experienceProgress;
         h.experienceTotal = player.totalExperience;
         h.score = player.getScore();
+        h.playerListVisible = client.options.playerListKey.isPressed();
 
         // --- Hotbar / inventory ---
         PlayerInventory inv = player.getInventory();

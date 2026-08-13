@@ -93,6 +93,11 @@ public final class Renderer {
         return instance == null ? null : instance.renderCamera;
     }
 
+    /** The HUD state currently being reproduced, or null (used by the tab-list overlay). */
+    public static HudState currentHud() {
+        return instance == null ? null : instance.lastAppliedHud;
+    }
+
     public static String previewStatus() {
         if (instance == null) {
             return null;

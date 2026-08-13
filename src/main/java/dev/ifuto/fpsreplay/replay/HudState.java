@@ -30,6 +30,8 @@ public final class HudState {
     public float experienceProgress;
     public int experienceTotal;
     public int score;
+    /** Whether the player list (Tab) was open at capture time. */
+    public boolean playerListVisible;
 
     // --- Hotbar / inventory (full contents, as SNBT strings) ---
     /** Selected hotbar slot index (0-8). */
@@ -221,6 +223,8 @@ public final class HudState {
             IoUtil.writeString(out, s.player);
             IoUtil.writeVarIntZigZag(out, s.value);
         }
+
+        out.writeBoolean(playerListVisible);
     }
 
     public static HudState read(DataInputStream in) throws IOException {
@@ -292,6 +296,8 @@ public final class HudState {
         for (int i = 0; i < scoreCount; i++) {
             h.scores.add(new Score(IoUtil.readString(in), IoUtil.readString(in), IoUtil.readVarIntZigZag(in)));
         }
+
+        h.playerListVisible = in.readBoolean();
         return h;
     }
 }
