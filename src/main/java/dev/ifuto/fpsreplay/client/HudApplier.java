@@ -8,9 +8,10 @@ import net.minecraft.entity.attribute.EntityAttributes;
 import net.minecraft.entity.effect.StatusEffectInstance;
 import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.item.ItemStack;
-import net.minecraft.nbt.NbtElement;
+import net.minecraft.nbt.NbtCompound;
 import net.minecraft.nbt.NbtHelper;
 import net.minecraft.registry.Registries;
+import net.minecraft.scoreboard.ScoreHolder;
 import net.minecraft.scoreboard.Scoreboard;
 import net.minecraft.scoreboard.ScoreboardCriterion;
 import net.minecraft.scoreboard.ScoreboardDisplaySlot;
@@ -65,9 +66,9 @@ public final class HudApplier {
                     inv.main.set(i, decodeItem(h.mainInventory.get(i), world));
                 }
             }
-            if (h.armor.size() == inv.armor.size()) {
+            if (h.armorSlots.size() == inv.armor.size()) {
                 for (int i = 0; i < inv.armor.size(); i++) {
-                    inv.armor.set(i, decodeItem(h.armor.get(i), world));
+                    inv.armor.set(i, decodeItem(h.armorSlots.get(i), world));
                 }
             }
             inv.offHand.set(0, decodeItem(h.offHand, world));
@@ -110,7 +111,8 @@ public final class HudApplier {
             for (HudState.Objective o : h.objectives) {
                 Text displayName = textFromJson(o.displayName, o.displayName);
                 ScoreboardObjective objective = sb.addObjective(
-                        o.name, ScoreboardCriterion.DUMMY, displayName, ScoreboardCriterion.RenderType.INTEGER);
+                        o.name, ScoreboardCriterion.DUMMY, displayName,
+                        ScoreboardCriterion.RenderType.INTEGER, false, null);
                 switch (o.slot) {
                     case 0 -> sb.setObjectiveSlot(ScoreboardDisplaySlot.LIST, objective);
                     case 1 -> sb.setObjectiveSlot(ScoreboardDisplaySlot.SIDEBAR, objective);
@@ -125,7 +127,7 @@ public final class HudApplier {
                 team.setDisplayName(textFromJson(t.displayName, t.displayName));
                 team.setPrefix(textFromJson(t.prefix, t.prefix));
                 team.setSuffix(textFromJson(t.suffix, t.suffix));
-                team.setColor(Formatting.byColorValue(t.color));
+                team.setColor(t.colorName == null || t.colorName.isEmpty() ? null : Formatting.byName(t.colorName));
                 team.setFriendlyFireAllowed(t.friendlyFire);
                 team.setShowFriendlyInvisibles(t.seeFriendlyInvisibles);
                 team.setCollisionRule(Team.CollisionRule.values()[clamp(t.collisionRule, 0, Team.CollisionRule.values().length - 1)]);
@@ -137,7 +139,7 @@ public final class HudApplier {
             for (HudState.Score s : h.scores) {
                 ScoreboardObjective objective = sb.getNullableObjective(s.objective);
                 if (objective != null) {
-                    sb.getPlayerScore(s.player, objective).setScore(s.value);
+                    sb.getOrCreateScore(ScoreHolder.fromName(s.player), objective).setScore(s.value);
                 }
             }
         } catch (Throwable t) {
@@ -167,7 +169,7 @@ public final class HudApplier {
             return ItemStack.EMPTY;
         }
         try {
-            NbtElement nbt = NbtHelper.fromNbtProviderString(snbt);
+            NbtCompound nbt = NbtHelper.fromNbtProviderString(snbt);
             return ItemStack.fromNbt(world.getRegistryManager(), nbt).orElse(ItemStack.EMPTY);
         } catch (Throwable t) {
             return ItemStack.EMPTY;

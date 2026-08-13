@@ -39,7 +39,7 @@ public final class HudState {
     /** 36 main inventory slots; empty string = empty slot. */
     public final List<String> mainInventory = new ArrayList<>(36);
     /** 4 armor slots. */
-    public final List<String> armor = new ArrayList<>(4);
+    public final List<String> armorSlots = new ArrayList<>(4);
     /** 1 off-hand slot. */
     public String offHand = "";
 
@@ -105,7 +105,8 @@ public final class HudState {
         public String displayName; // JSON text
         public String prefix;      // JSON text
         public String suffix;      // JSON text
-        public int color;          // ARGB
+        /** Formatting name (e.g. "red"); empty = no color. */
+        public String colorName;
         public boolean friendlyFire;
         public boolean seeFriendlyInvisibles;
         /** Ordinals of the MC enums (CollisionRule / VisibilityRule). */
@@ -113,14 +114,14 @@ public final class HudState {
         public int nameTagVisibility;
         public int deathMessageVisibility;
 
-        public Team(String name, String displayName, String prefix, String suffix, int color,
+        public Team(String name, String displayName, String prefix, String suffix, String colorName,
                     boolean friendlyFire, boolean seeFriendlyInvisibles,
                     int collisionRule, int nameTagVisibility, int deathMessageVisibility) {
             this.name = name;
             this.displayName = displayName;
             this.prefix = prefix;
             this.suffix = suffix;
-            this.color = color;
+            this.colorName = colorName;
             this.friendlyFire = friendlyFire;
             this.seeFriendlyInvisibles = seeFriendlyInvisibles;
             this.collisionRule = collisionRule;
@@ -168,8 +169,8 @@ public final class HudState {
         for (String s : mainInventory) {
             IoUtil.writeString(out, s == null ? "" : s);
         }
-        out.writeByte(armor.size());
-        for (String s : armor) {
+        out.writeByte(armorSlots.size());
+        for (String s : armorSlots) {
             IoUtil.writeString(out, s == null ? "" : s);
         }
         IoUtil.writeString(out, offHand == null ? "" : offHand);
@@ -209,7 +210,7 @@ public final class HudState {
             IoUtil.writeString(out, t.displayName == null ? "" : t.displayName);
             IoUtil.writeString(out, t.prefix == null ? "" : t.prefix);
             IoUtil.writeString(out, t.suffix == null ? "" : t.suffix);
-            out.writeInt(t.color);
+            IoUtil.writeString(out, t.colorName == null ? "" : t.colorName);
             out.writeBoolean(t.friendlyFire);
             out.writeBoolean(t.seeFriendlyInvisibles);
             out.writeByte(t.collisionRule);
@@ -250,7 +251,7 @@ public final class HudState {
         }
         int armorCount = in.readUnsignedByte();
         for (int i = 0; i < armorCount; i++) {
-            h.armor.add(IoUtil.readString(in));
+            h.armorSlots.add(IoUtil.readString(in));
         }
         h.offHand = IoUtil.readString(in);
 
@@ -288,7 +289,7 @@ public final class HudState {
         for (int i = 0; i < teamCount; i++) {
             h.teams.add(new Team(
                     IoUtil.readString(in), IoUtil.readString(in), IoUtil.readString(in), IoUtil.readString(in),
-                    in.readInt(), in.readBoolean(), in.readBoolean(),
+                    IoUtil.readString(in), in.readBoolean(), in.readBoolean(),
                     in.readUnsignedByte(), in.readUnsignedByte(), in.readUnsignedByte()));
         }
 

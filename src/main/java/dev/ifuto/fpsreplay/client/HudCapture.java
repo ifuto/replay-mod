@@ -3,21 +3,22 @@ package dev.ifuto.fpsreplay.client;
 import dev.ifuto.fpsreplay.replay.HudState;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.network.ClientPlayerEntity;
+import net.minecraft.client.network.PlayerListEntry;
 import net.minecraft.client.world.ClientWorld;
 import net.minecraft.entity.effect.StatusEffectInstance;
 import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.item.ItemStack;
+import net.minecraft.nbt.NbtCompound;
+import net.minecraft.nbt.NbtElement;
 import net.minecraft.nbt.NbtHelper;
-import net.minecraft.network.packet.s2c.play.PlayerListS2CPacket;
 import net.minecraft.registry.Registries;
 import net.minecraft.scoreboard.Scoreboard;
 import net.minecraft.scoreboard.ScoreboardDisplaySlot;
+import net.minecraft.scoreboard.ScoreboardEntry;
 import net.minecraft.scoreboard.ScoreboardObjective;
-import net.minecraft.scoreboard.ScoreboardPlayerScore;
 import net.minecraft.scoreboard.Team;
 import net.minecraft.text.Text;
-
-import java.util.Collection;
+import net.minecraft.util.Formatting;
 
 /**
  * Builds a {@link HudState} snapshot from the live client. Captures player
@@ -58,7 +59,7 @@ public final class HudCapture {
             h.mainInventory.add(encodeItem(inv.main.get(i), world));
         }
         for (int i = 0; i < inv.armor.size(); i++) {
-            h.armor.add(encodeItem(inv.armor.get(i), world));
+            h.armorSlots.add(encodeItem(inv.armor.get(i), world));
         }
         h.offHand = encodeItem(inv.offHand.get(0), world);
 
@@ -71,10 +72,11 @@ public final class HudCapture {
 
         // --- Tab player list ---
         if (client.getNetworkHandler() != null) {
-            for (PlayerListS2CPacket.Entry entry : client.getNetworkHandler().getPlayerList()) {
+            for (PlayerListEntry entry : client.getNetworkHandler().getPlayerList()) {
                 String name = entry.getProfile() != null ? entry.getProfile().getName() : "";
                 h.playerList.add(new HudState.PlayerEntry(
-                        entry.getProfileId(), name, entry.getLatency(),
+                        entry.getProfile() != null ? entry.getProfile().getId() : new java.util.UUID(0, 0),
+                        name, entry.getLatency(),
                         entry.getGameMode() != null ? entry.getGameMode().getId() : 0,
                         textJson(entry.getDisplayName(), world)));
             }
@@ -95,19 +97,22 @@ public final class HudCapture {
                 h.objectives.add(new HudState.Objective(objective.getName(), textJson(objective.getDisplayName(), world), slot));
             }
             for (Team team : sb.getTeams()) {
+                Formatting color = team.getColor();
                 h.teams.add(new HudState.Team(
                         team.getName(), textJson(team.getDisplayName(), world),
                         textJson(team.getPrefix(), world), textJson(team.getSuffix(), world),
-                        team.getColor().getColorValue(),
+                        color != null ? color.getName() : "",
                         team.isFriendlyFireAllowed(), team.shouldShowFriendlyInvisibles(),
                         team.getCollisionRule().ordinal(),
                         team.getNameTagVisibilityRule().ordinal(),
                         team.getDeathMessageVisibilityRule().ordinal()));
             }
             for (ScoreboardObjective objective : sb.getObjectives()) {
-                Collection<ScoreboardPlayerScore> scores = sb.getAllPlayerScores(objective);
-                for (ScoreboardPlayerScore score : scores) {
-                    h.scores.add(new HudState.Score(objective.getName(), score.getPlayerName(), score.getScore()));
+                for (ScoreboardEntry entry : sb.getScoreboardEntries(objective)) {
+                    h.scores.add(new HudState.Score(
+                            objective.getName(),
+                            entry.owner(),
+                            entry.value()));
                 }
             }
         }
@@ -132,7 +137,11 @@ public final class HudCapture {
             return "";
         }
         try {
-            return NbtHelper.toNbtProviderString(stack.encode(world.getRegistryManager()));
+            NbtElement nbt = stack.encode(world.getRegistryManager());
+            if (nbt instanceof NbtCompound compound) {
+                return NbtHelper.toNbtProviderString(compound);
+            }
+            return "";
         } catch (Throwable t) {
             return "";
         }

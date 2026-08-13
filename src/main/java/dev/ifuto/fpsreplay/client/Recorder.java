@@ -39,7 +39,7 @@ public final class Recorder implements AutoCloseable {
     private final ReplayWriter writer;
     private final File file;
     private long lastKeyTick = Long.MIN_VALUE;
-    private final CameraFrame lastKey = new CameraFrame(0, 0, 0, 0, 0, 0, 0, 0, 0);
+    private CameraFrame lastKey;
     private final List<EntityFrame> entityScratch = new ArrayList<>(128);
 
     private Recorder(ReplayWriter writer, File file) {
@@ -67,7 +67,7 @@ public final class Recorder implements AutoCloseable {
         ReplayMetadata meta = new ReplayMetadata(
                 SharedConstants.getGameVersion().getName(),
                 name,
-                world.getSeed(),
+                resolveSeed(client),
                 20,
                 System.currentTimeMillis(),
                 ReplayConfig.keyframeInterval);
@@ -160,16 +160,8 @@ public final class Recorder implements AutoCloseable {
 
         try {
             if (lastKeyTick == Long.MIN_VALUE || tick - lastKeyTick >= ReplayConfig.keyframeInterval) {
-                // Keyframe: update the reused anchor + capture HUD/entities.
-                lastKey.tick = tick;
-                lastKey.x = x;
-                lastKey.y = y;
-                lastKey.z = z;
-                lastKey.yaw = yaw;
-                lastKey.pitch = pitch;
-                lastKey.roll = roll;
-                lastKey.fov = fov;
-                lastKey.handSwingProgress = handSwing;
+                // Keyframe: capture HUD/entities and anchor the delta encoding.
+                lastKey = new CameraFrame(tick, x, y, z, yaw, pitch, roll, fov, handSwing);
                 sampleEntities(world, player);
                 writer.writeKeyframe(tick, lastKey, HudCapture.capture(client), entityScratch);
                 lastKeyTick = tick;
@@ -225,6 +217,17 @@ public final class Recorder implements AutoCloseable {
                     entity.getYaw(), entity.getPitch(), headYaw,
                     health, maxHealth, customName, flags));
         }
+    }
+
+    /** The seed is only metadata (replays render in the live world); resolve it best-effort. */
+    private static long resolveSeed(MinecraftClient client) {
+        try {
+            if (client.getServer() != null && client.getServer().getOverworld() != null) {
+                return client.getServer().getOverworld().getSeed();
+            }
+        } catch (Throwable ignored) {
+        }
+        return 0L;
     }
 
     @Override

@@ -6,7 +6,6 @@ import dev.ifuto.fpsreplay.client.Renderer;
 import net.minecraft.client.render.Camera;
 import net.minecraft.entity.Entity;
 import net.minecraft.world.BlockView;
-import org.joml.Quaternionf;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -29,15 +28,21 @@ public abstract class CameraMixin {
         if (Renderer.isRendering()) {
             float[] pose = Renderer.renderCamera();
             if (pose != null) {
-                self.setPos(pose[0], pose[1], pose[2]);
-                self.setRotation(pose[3], pose[4]);
+                invokeSetPos(pose[0], pose[1], pose[2]);
+                invokeSetRotation(pose[3], pose[4]);
                 float roll = pose[5];
                 if (roll != 0.0f) {
-                    self.rotate(new Quaternionf().rotateZ((float) Math.toRadians(roll)));
+                    self.getRotation().rotateZ((float) Math.toRadians(roll));
                 }
             }
         } else if (Recorder.isRecording()) {
             CameraCapture.capture(self);
         }
     }
+
+    @org.spongepowered.asm.mixin.gen.Invoker("setPos")
+    abstract void invokeSetPos(double x, double y, double z);
+
+    @org.spongepowered.asm.mixin.gen.Invoker("setRotation")
+    abstract void invokeSetRotation(float yaw, float pitch);
 }

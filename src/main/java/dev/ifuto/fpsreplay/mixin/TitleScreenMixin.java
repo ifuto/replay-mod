@@ -4,6 +4,9 @@ import dev.ifuto.fpsreplay.client.FlashTextures;
 import dev.ifuto.fpsreplay.client.ImageButton;
 import dev.ifuto.fpsreplay.client.ReplayListScreen;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.gui.Drawable;
+import net.minecraft.client.gui.Element;
+import net.minecraft.client.gui.Selectable;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.screen.TitleScreen;
 import net.minecraft.text.Text;
@@ -26,6 +29,9 @@ public abstract class TitleScreenMixin {
                 FlashTextures.REPLAY_LIST,
                 Text.translatable("gui.flash-replay.replay_list"),
                 b -> MinecraftClient.getInstance().setScreen(new ReplayListScreen(screen)));
-        screen.addDrawableChild(button);
+        addDrawableChild(button);
     }
+
+    @org.spongepowered.asm.mixin.gen.Invoker("addDrawableChild")
+    abstract <T extends Element & Drawable & Selectable> T addDrawableChild(T drawableElement);
 }

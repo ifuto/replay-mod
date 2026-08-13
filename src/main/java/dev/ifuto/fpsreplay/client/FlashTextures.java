@@ -12,9 +12,9 @@ import java.io.InputStream;
  * images in {@code images/}) so they can be drawn with {@code DrawContext}.
  */
 public final class FlashTextures {
-    public static final Identifier RECORD_START = new Identifier("flash-replay", "textures/gui/record_start.png");
-    public static final Identifier RECORD_STOP = new Identifier("flash-replay", "textures/gui/record_stop.png");
-    public static final Identifier REPLAY_LIST = new Identifier("flash-replay", "textures/gui/replay_list.png");
+    public static final Identifier RECORD_START = Identifier.of("flash-replay", "textures/gui/record_start.png");
+    public static final Identifier RECORD_STOP = Identifier.of("flash-replay", "textures/gui/record_stop.png");
+    public static final Identifier REPLAY_LIST = Identifier.of("flash-replay", "textures/gui/replay_list.png");
 
     private FlashTextures() {
     }

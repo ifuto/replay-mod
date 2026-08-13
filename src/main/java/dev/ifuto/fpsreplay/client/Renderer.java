@@ -8,6 +8,7 @@ import dev.ifuto.fpsreplay.replay.ReplayReader;
 import dev.ifuto.fpsreplay.replay.ReplayState;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gl.Framebuffer;
+import net.minecraft.client.gl.SimpleFramebuffer;
 import net.minecraft.client.network.ClientPlayerEntity;
 import net.minecraft.client.texture.NativeImage;
 
@@ -141,7 +142,7 @@ public final class Renderer {
             r.dt = (double) state.metadata.tickRate / (mode == Mode.PREVIEW ? 60 : fps);
 
             if (mode != Mode.PREVIEW) {
-                r.renderFb = new Framebuffer(width, height, true);
+                r.renderFb = new SimpleFramebuffer(width, height, true);
                 r.renderFb.setClearColor(0.0f, 0.0f, 0.0f, 1.0f);
                 if (format == Format.MP4) {
                     r.mp4 = new Mp4Exporter(new File(outDir, "output.mp4"), fps);
@@ -347,13 +348,22 @@ public final class Renderer {
         for (int y = 0; y < h; y++) {
             int row = y * w;
             for (int x = 0; x < w; x++) {
-                pixels[row + x] = img.getPixelColor(x, y);
+                pixels[row + x] = abgrToArgb(img.getColor(x, y));
             }
         }
         // Bulk copy: one setRGB call instead of w*h, much faster for 4K/8K.
         BufferedImage bi = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
         bi.setRGB(0, 0, w, h, pixels, 0, w);
         return bi;
+    }
+
+    /** NativeImage stores colors as ABGR; BufferedImage needs ARGB. */
+    private static int abgrToArgb(int c) {
+        int a = (c >>> 24) & 0xFF;
+        int r = c & 0xFF;
+        int g = (c >>> 8) & 0xFF;
+        int b = (c >>> 16) & 0xFF;
+        return (a << 24) | (r << 16) | (g << 8) | b;
     }
 
     /** Compute the camera pose at fractional tick {@code t}. */
