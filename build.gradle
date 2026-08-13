@@ -22,6 +22,11 @@ dependencies {
 
     // Fabric API. This is technically optional, but you probably want it anyway.
     modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
+
+    // JCodec (pure-Java H.264/MP4 encoder) — bundled into the mod jar for
+    // offline MP4 export at any resolution / framerate.
+    include implementation("org.jcodec:jcodec:0.2.5")
+    include implementation("org.jcodec:jcodec-javase:0.2.5")
 }
 
 processResources {

@@ -7,7 +7,9 @@ import dev.ifuto.fpsreplay.replay.ReplayFile;
 import dev.ifuto.fpsreplay.replay.ReplayMetadata;
 import dev.ifuto.fpsreplay.replay.ReplayWriter;
 import net.fabricmc.loader.api.FabricLoader;
+import net.minecraft.SharedConstants;
 import net.minecraft.block.Block;
+import net.minecraft.block.BlockState;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.network.ClientPlayerEntity;
 import net.minecraft.client.world.ClientWorld;
@@ -15,9 +17,6 @@ import net.minecraft.entity.Entity;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.registry.Registries;
 import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Vec3d;
-import net.minecraft.block.BlockState;
-import net.minecraft.SharedConstants;
 
 import java.io.File;
 import java.io.IOException;
@@ -25,11 +24,13 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * The recorder. This is the "軽量化" heart of the mod: instead of capturing
- * pixels every frame, it samples the camera once per <b>tick</b> (20/s) and
- * writes a few quantized bytes per sample. Entity snapshots and block changes
- * are written as sparse events, so the recording cost is negligible even in
- * heavy scenes.
+ * The recorder — the "死ぬほど軽量化" core.
+ *
+ * <p>Instead of capturing pixels, it writes a handful of quantized bytes once
+ * per <b>tick</b> (20/s), sampled from the real render camera (so the exact
+ * viewpoint, including bobbing/roll/FOV, is preserved). The hot path is
+ * allocation-free: no per-tick objects, no boxing, minimal bytes via zigzag
+ * varint deltas. Entity + HUD snapshots only occur at keyframes.</p>
  */
 public final class Recorder implements AutoCloseable {
     private static Recorder instance;
@@ -37,7 +38,8 @@ public final class Recorder implements AutoCloseable {
     private final ReplayWriter writer;
     private final File file;
     private long lastKeyTick = Long.MIN_VALUE;
-    private CameraFrame lastKey;
+    private final CameraFrame lastKey = new CameraFrame(0, 0, 0, 0, 0, 0, 0, 0, 0);
+    private final List<EntityFrame> entityScratch = new ArrayList<>(128);
 
     private Recorder(ReplayWriter writer, File file) {
         this.writer = writer;
@@ -52,11 +54,6 @@ public final class Recorder implements AutoCloseable {
         return instance == null ? null : instance.file;
     }
 
-    /**
-     * Begin recording into {@code <gameDir>/replays/<name>.fpr}.
-     *
-     * @return the created file, or null on failure.
-     */
     public static File start(MinecraftClient client, String name) {
         stop();
         ClientWorld world = client.world;
@@ -77,6 +74,7 @@ public final class Recorder implements AutoCloseable {
         try {
             ReplayWriter writer = ReplayFile.create(file, meta, ReplayConfig.compressionLevel);
             instance = new Recorder(writer, file);
+            CameraCapture.reset();
             FpsReplayClient.LOGGER.info("[FPS Replay] Recording started -> {}", file);
             return file;
         } catch (IOException e) {
@@ -85,14 +83,12 @@ public final class Recorder implements AutoCloseable {
         }
     }
 
-    /** Called once per client tick while recording. */
     public static void tick() {
         if (instance != null) {
             instance.sample();
         }
     }
 
-    /** Called whenever a block changes in the client world (from the mixin). */
     public static void onBlockChange(BlockPos pos, BlockState state) {
         if (instance == null || !ReplayConfig.recordBlockChanges) {
             return;
@@ -109,12 +105,13 @@ public final class Recorder implements AutoCloseable {
         if (instance == null) {
             return;
         }
+        Recorder r = instance;
         try {
-            instance.close();
+            r.close();
         } catch (IOException e) {
             FpsReplayClient.LOGGER.error("[FPS Replay] Failed to finalize recording", e);
         }
-        FpsReplayClient.LOGGER.info("[FPS Replay] Recording saved -> {}", instance.file);
+        FpsReplayClient.LOGGER.info("[FPS Replay] Recording saved -> {}", r.file);
         instance = null;
     }
 
@@ -127,22 +124,58 @@ public final class Recorder implements AutoCloseable {
         }
 
         long tick = world.getTime();
-        Vec3d eye = player.getEyePos();
-        float fov = (float) (double) client.options.getFov().getValue();
-        CameraFrame cam = new CameraFrame(
-                tick,
-                eye.x, eye.y, eye.z,
-                player.getYaw(), player.getPitch(), 0.0f,
-                fov, player.handSwingProgress);
+
+        // Exact camera: prefer the captured render camera (includes bob/roll);
+        // fall back to the raw eye position on the very first sample.
+        double x;
+        double y;
+        double z;
+        float yaw;
+        float pitch;
+        float roll;
+        float fov;
+        float handSwing;
+        if (CameraCapture.valid) {
+            x = CameraCapture.x;
+            y = CameraCapture.y;
+            z = CameraCapture.z;
+            yaw = CameraCapture.yaw;
+            pitch = CameraCapture.pitch;
+            roll = CameraCapture.roll;
+            fov = CameraCapture.fov;
+        } else {
+            var eye = player.getEyePos();
+            x = eye.x;
+            y = eye.y;
+            z = eye.z;
+            yaw = player.getYaw();
+            pitch = player.getPitch();
+            roll = 0.0f;
+            fov = (float) (double) client.options.getFov().getValue();
+        }
+        handSwing = player.handSwingProgress;
 
         try {
-            if (lastKey == null || tick - lastKeyTick >= ReplayConfig.keyframeInterval) {
-                List<EntityFrame> entities = sampleEntities(world, player);
-                writer.writeKeyframe(tick, cam, entities);
-                lastKey = cam;
+            if (lastKeyTick == Long.MIN_VALUE || tick - lastKeyTick >= ReplayConfig.keyframeInterval) {
+                // Keyframe: update the reused anchor + capture HUD/entities.
+                lastKey.tick = tick;
+                lastKey.x = x;
+                lastKey.y = y;
+                lastKey.z = z;
+                lastKey.yaw = yaw;
+                lastKey.pitch = pitch;
+                lastKey.roll = roll;
+                lastKey.fov = fov;
+                lastKey.handSwingProgress = handSwing;
+                sampleEntities(world, player);
+                writer.writeKeyframe(tick, lastKey, HudCapture.capture(client), entityScratch);
                 lastKeyTick = tick;
             } else {
-                writer.writeTick(tick, cam, lastKey);
+                writer.writeTick(
+                        tick,
+                        x - lastKey.x, y - lastKey.y, z - lastKey.z,
+                        yaw - lastKey.yaw, pitch - lastKey.pitch, roll - lastKey.roll,
+                        fov - lastKey.fov, handSwing);
             }
         } catch (IOException e) {
             FpsReplayClient.LOGGER.error("[FPS Replay] Recording write failed", e);
@@ -150,9 +183,9 @@ public final class Recorder implements AutoCloseable {
         }
     }
 
-    private List<EntityFrame> sampleEntities(ClientWorld world, ClientPlayerEntity self) {
+    private void sampleEntities(ClientWorld world, ClientPlayerEntity self) {
+        entityScratch.clear();
         double rangeSq = (double) ReplayConfig.entityRange * ReplayConfig.entityRange;
-        List<EntityFrame> out = new ArrayList<>();
         for (Entity entity : world.getEntities()) {
             if (entity == self) {
                 continue;
@@ -162,12 +195,11 @@ public final class Recorder implements AutoCloseable {
             }
             int typeId = Registries.ENTITY_TYPE.getRawId(entity.getType());
             float headYaw = entity instanceof LivingEntity living ? living.getHeadYaw() : entity.getYaw();
-            out.add(new EntityFrame(
+            entityScratch.add(new EntityFrame(
                     entity.getId(), typeId,
                     entity.getX(), entity.getY(), entity.getZ(),
                     entity.getYaw(), entity.getPitch(), headYaw));
         }
-        return out;
     }
 
     @Override

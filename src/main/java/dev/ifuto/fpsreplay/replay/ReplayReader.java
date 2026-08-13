@@ -28,12 +28,11 @@ public final class ReplayReader implements AutoCloseable {
 
     /**
      * Read every record and build an in-memory {@link ReplayState}.
-     * Suitable for rendering; streaming/random-access is a future optimization.
      */
     public ReplayState readAll() throws IOException {
         ReplayState state = new ReplayState(metadata);
         CameraFrame lastKey = null;
-        List<EntityFrame> keyEntities = null;
+        long lastTick = Long.MIN_VALUE;
 
         while (true) {
             int id = body.readUnsignedByte();
@@ -47,34 +46,41 @@ public final class ReplayReader implements AutoCloseable {
                             body.readDouble(), body.readDouble(), body.readDouble(),
                             body.readFloat(), body.readFloat(), body.readFloat(),
                             body.readFloat(), body.readFloat());
-                    int count = IoUtil.readVarInt(body);
-                    keyEntities = new ArrayList<>(count);
+                    HudState hud = HudState.read(body);
+                    int count = body.readInt();
+                    List<EntityFrame> entities = new ArrayList<>(count);
                     for (int i = 0; i < count; i++) {
-                        keyEntities.add(readEntity());
+                        entities.add(readEntity());
                     }
                     state.cameraFrames.add(cam);
-                    state.applyKeyframeEntities(cam.tick, keyEntities);
+                    state.hudStates.put(tick, hud);
+                    for (EntityFrame e : entities) {
+                        state.entityTracks.computeIfAbsent(e.entityId, k -> new ArrayList<>()).add(e);
+                    }
                     lastKey = cam;
+                    lastTick = tick;
                 }
                 case TICK -> {
                     if (lastKey == null) {
                         throw new IOException("TICK record before any KEYFRAME");
                     }
-                    long tick = IoUtil.readVarInt(body);
-                    double dx = body.readShort() / ReplayWriter.POS_DELTA_SCALE;
-                    double dy = body.readShort() / ReplayWriter.POS_DELTA_SCALE;
-                    double dz = body.readShort() / ReplayWriter.POS_DELTA_SCALE;
-                    float dyaw = body.readShort() / (float) ReplayWriter.ROT_DELTA_SCALE;
-                    float dpitch = body.readShort() / (float) ReplayWriter.ROT_DELTA_SCALE;
-                    float fov = body.readUnsignedByte();
-                    float handSwing = body.readUnsignedByte() / 100.0f;
+                    long tick = lastTick + IoUtil.readVarIntZigZag(body);
+                    double dx = IoUtil.readVarIntZigZag(body) / ReplayWriter.POS_SCALE;
+                    double dy = IoUtil.readVarIntZigZag(body) / ReplayWriter.POS_SCALE;
+                    double dz = IoUtil.readVarIntZigZag(body) / ReplayWriter.POS_SCALE;
+                    float dyaw = IoUtil.readVarIntZigZag(body) / (float) ReplayWriter.ROT_SCALE;
+                    float dpitch = IoUtil.readVarIntZigZag(body) / (float) ReplayWriter.ROT_SCALE;
+                    float droll = IoUtil.readVarIntZigZag(body) / (float) ReplayWriter.ROT_SCALE;
+                    float dfov = IoUtil.readVarIntZigZag(body) / (float) ReplayWriter.ROT_SCALE;
+                    float handSwing = IoUtil.readVarIntZigZag(body) / (float) ReplayWriter.HAND_SCALE;
 
                     CameraFrame cam = new CameraFrame(
                             tick,
                             lastKey.x + dx, lastKey.y + dy, lastKey.z + dz,
-                            lastKey.yaw + dyaw, lastKey.pitch + dpitch, lastKey.roll,
-                            fov, handSwing);
+                            lastKey.yaw + dyaw, lastKey.pitch + dpitch, lastKey.roll + droll,
+                            lastKey.fov + dfov, handSwing);
                     state.cameraFrames.add(cam);
+                    lastTick = tick;
                 }
                 case BLOCK_CHANGE -> {
                     int x = body.readInt();

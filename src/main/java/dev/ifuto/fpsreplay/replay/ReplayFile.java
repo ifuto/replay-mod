@@ -50,12 +50,12 @@ public final class ReplayFile {
         OutputStream body = new GZIPOutputStream(fos, 8192) {
             {
                 // GZIPOutputStream exposes no public constructor with a level,
-                // so we swap in a Deflater with the requested level while
-                // keeping the gzip framing. Safe because GZIPOutputStream
-                // delegates all deflation to this field. We also mark the
-                // deflater as "not default" so close() releases it properly.
+                // so we swap the (protected) `def` Deflater for one with the
+                // requested level while keeping the gzip framing. Release the
+                // original default deflater to avoid leaking native memory.
+                Deflater old = this.def;
                 this.def = new Deflater(compressionLevel, true);
-                this.usesDefaultDeflater = false;
+                old.end();
             }
         };
         return new ReplayWriter(new DataOutputStream(body));

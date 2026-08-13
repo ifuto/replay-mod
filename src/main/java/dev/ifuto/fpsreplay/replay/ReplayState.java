@@ -21,15 +21,24 @@ public final class ReplayState {
     public final Map<Integer, List<EntityFrame>> entityTracks = new HashMap<>();
     /** Block changes in recording order. */
     public final List<BlockChange> blockChanges = new ArrayList<>();
+    /** HUD snapshots keyed by the tick they were captured at. */
+    public final Map<Long, HudState> hudStates = new HashMap<>();
 
     public ReplayState(ReplayMetadata metadata) {
         this.metadata = metadata;
     }
 
-    void applyKeyframeEntities(long tick, List<EntityFrame> entities) {
-        for (EntityFrame e : entities) {
-            entityTracks.computeIfAbsent(e.entityId, k -> new ArrayList<>()).add(e);
+    /** Find the most recent HUD snapshot at or before {@code tick}. */
+    public HudState hudStateAt(long tick) {
+        HudState best = null;
+        long bestTick = Long.MIN_VALUE;
+        for (Map.Entry<Long, HudState> e : hudStates.entrySet()) {
+            if (e.getKey() <= tick && e.getKey() > bestTick) {
+                bestTick = e.getKey();
+                best = e.getValue();
+            }
         }
+        return best;
     }
 
     public long startTick() {

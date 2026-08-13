@@ -5,7 +5,12 @@
   "client": [
     "MinecraftClientMixin",
     "GameRendererMixin",
-    "ClientWorldMixin"
+    "CameraMixin",
+    "ClientWorldMixin",
+    "KeyboardMixin",
+    "InGameHudMixin",
+    "GameMenuScreenMixin",
+    "TitleScreenMixin"
   ],
   "injectors": {
     "defaultRequire": 1

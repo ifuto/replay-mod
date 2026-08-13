@@ -33,6 +33,8 @@ public final class ReplayConfig {
     public static int renderFps = 360;
     /** "linear" or "spline" interpolation for sub-tick frames. */
     public static String interpolationMode = "linear";
+    /** Default export format: "mp4" or "png". */
+    public static String defaultFormat = "mp4";
 
     private ReplayConfig() {
     }
@@ -61,6 +63,7 @@ public final class ReplayConfig {
         renderHeight = intProp(props, "renderHeight", renderHeight);
         renderFps = intProp(props, "renderFps", renderFps);
         interpolationMode = props.getProperty("interpolationMode", interpolationMode);
+        defaultFormat = props.getProperty("defaultFormat", defaultFormat);
     }
 
     public static void save() {
@@ -73,6 +76,7 @@ public final class ReplayConfig {
         props.setProperty("renderHeight", String.valueOf(renderHeight));
         props.setProperty("renderFps", String.valueOf(renderFps));
         props.setProperty("interpolationMode", interpolationMode);
+        props.setProperty("defaultFormat", defaultFormat);
         try {
             Path path = configFile();
             Files.createDirectories(path.getParent());
