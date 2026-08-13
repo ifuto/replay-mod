@@ -4,9 +4,6 @@ import dev.ifuto.fpsreplay.client.FlashTextures;
 import dev.ifuto.fpsreplay.client.ImageButton;
 import dev.ifuto.fpsreplay.client.ReplayListScreen;
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.Drawable;
-import net.minecraft.client.gui.Element;
-import net.minecraft.client.gui.Selectable;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.screen.TitleScreen;
 import net.minecraft.text.Text;
@@ -20,18 +17,18 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * to the main title screen.
  */
 @Mixin(TitleScreen.class)
-public abstract class TitleScreenMixin {
+public abstract class TitleScreenMixin extends Screen {
+
+    protected TitleScreenMixin(Text title) {
+        super(title);
+    }
 
     @Inject(method = "init", at = @At("RETURN"))
     private void fpsreplay$addReplayButton(CallbackInfo ci) {
-        Screen screen = (Screen) (Object) this;
         ImageButton button = new ImageButton(10, 10, 150, 20,
                 FlashTextures.REPLAY_LIST,
                 Text.translatable("gui.flash-replay.replay_list"),
-                b -> MinecraftClient.getInstance().setScreen(new ReplayListScreen(screen)));
-        addDrawableChild(button);
+                b -> MinecraftClient.getInstance().setScreen(new ReplayListScreen(this)));
+        this.addDrawableChild(button);
     }
-
-    @org.spongepowered.asm.mixin.gen.Invoker("addDrawableChild")
-    abstract <T extends Element & Drawable & Selectable> T addDrawableChild(T drawableElement);
 }

@@ -4,10 +4,8 @@ import dev.ifuto.fpsreplay.client.FlashTextures;
 import dev.ifuto.fpsreplay.client.ImageButton;
 import dev.ifuto.fpsreplay.client.Recorder;
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.Drawable;
-import net.minecraft.client.gui.Element;
-import net.minecraft.client.gui.Selectable;
 import net.minecraft.client.gui.screen.GameMenuScreen;
+import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
@@ -24,13 +22,17 @@ import java.time.format.DateTimeFormatter;
  * to the pause (game menu) screen.
  */
 @Mixin(GameMenuScreen.class)
-public abstract class GameMenuScreenMixin {
+public abstract class GameMenuScreenMixin extends Screen {
+
+    protected GameMenuScreenMixin(Text title) {
+        super(title);
+    }
 
     @Inject(method = "init", at = @At("RETURN"))
     private void fpsreplay$addRecordButton(CallbackInfo ci) {
         ImageButton button = new ImageButton(10, 10, 150, 20,
                 recordTexture(), recordLabel(), this::toggle);
-        addDrawableChild(button);
+        this.addDrawableChild(button);
     }
 
     private static Text recordLabel() {
@@ -55,7 +57,4 @@ public abstract class GameMenuScreenMixin {
             ib.setTexture(recordTexture());
         }
     }
-
-    @org.spongepowered.asm.mixin.gen.Invoker("addDrawableChild")
-    abstract <T extends Element & Drawable & Selectable> T addDrawableChild(T drawableElement);
 }
