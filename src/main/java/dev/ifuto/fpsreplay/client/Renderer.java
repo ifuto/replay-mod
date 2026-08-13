@@ -59,6 +59,7 @@ public final class Renderer {
     private HudState lastAppliedHud;
     private final ReplayEntityManager entityManager = new ReplayEntityManager();
     private int savedMaxFps = -1;
+    private double savedFov = -1;
     private int appliedBlockIndex = 0;
 
     private Renderer(ReplayState state, Mode mode, Format format, int width, int height, int fps, File outDir) {
@@ -149,6 +150,7 @@ public final class Renderer {
                 }
             }
             r.lastNanos = System.nanoTime();
+            r.savedFov = (double) client.options.getFov().getValue();
 
             if (client.world != null) {
                 r.entityManager.start(client.world);
@@ -189,6 +191,12 @@ public final class Renderer {
             } catch (Throwable ignored) {
             }
         }
+        if (r.savedFov > 0) {
+            try {
+                client.options.getFov().setValue(r.savedFov);
+            } catch (Throwable ignored) {
+            }
+        }
         if (r.mp4 != null) {
             try {
                 r.mp4.close();
@@ -217,6 +225,9 @@ public final class Renderer {
         // Keep the player entity at the replay position so world rendering,
         // chunk loading and entity culling all follow the camera.
         player.refreshPositionAndAngles(cam.x, cam.y - 1.62f, cam.z, cam.yaw, cam.pitch);
+
+        // Reproduce the recorded FOV via the client option.
+        client.options.getFov().setValue((double) cam.fov);
 
         // Reproduce the hand-swing (mining / item use animation).
         player.handSwingProgress = cam.handSwingProgress;
@@ -301,6 +312,47 @@ public final class Renderer {
         } else if (keyCode == org.lwjgl.glfw.GLFW.GLFW_KEY_RIGHT) {
             currentTick = Math.min(state.endTick(), currentTick + 20);
         }
+    }
+
+    /**
+     * Poll the keyboard directly via GLFW (no mixin, version-independent).
+     * Uses edge detection so holding a key only triggers once per press.
+     */
+    public static void pollPreviewKeys(MinecraftClient client) {
+        if (!isPreviewing()) {
+            return;
+        }
+        long window = client.getWindow().getHandle();
+        Renderer r = instance;
+        if (r == null) {
+            return;
+        }
+        if (edge(window, org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE)) {
+            stop(client);
+            return;
+        }
+        if (edge(window, org.lwjgl.glfw.GLFW.GLFW_KEY_SPACE)) {
+            r.handlePreviewKey(org.lwjgl.glfw.GLFW.GLFW_KEY_SPACE);
+        } else if (edge(window, org.lwjgl.glfw.GLFW.GLFW_KEY_LEFT)) {
+            r.handlePreviewKey(org.lwjgl.glfw.GLFW.GLFW_KEY_LEFT);
+        } else if (edge(window, org.lwjgl.glfw.GLFW.GLFW_KEY_RIGHT)) {
+            r.handlePreviewKey(org.lwjgl.glfw.GLFW.GLFW_KEY_RIGHT);
+        }
+    }
+
+    private static final java.util.Set<Integer> pressedKeys = new java.util.HashSet<>();
+
+    private static boolean edge(long window, int key) {
+        boolean down = org.lwjgl.glfw.GLFW.glfwGetKey(window, key) == org.lwjgl.glfw.GLFW.GLFW_PRESS;
+        boolean was = pressedKeys.contains(key);
+        if (down && !was) {
+            pressedKeys.add(key);
+            return true;
+        }
+        if (!down) {
+            pressedKeys.remove(key);
+        }
+        return false;
     }
 
     private void advancePreview() {

@@ -5,7 +5,7 @@ import dev.ifuto.fpsreplay.client.Recorder;
 import dev.ifuto.fpsreplay.client.Renderer;
 import net.minecraft.client.render.Camera;
 import net.minecraft.entity.Entity;
-import net.minecraft.world.BlockView;
+import net.minecraft.world.World;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -21,7 +21,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public abstract class CameraMixin {
 
     @Inject(method = "update", at = @At("RETURN"))
-    private void fpsreplay$afterUpdate(BlockView area, Entity focusedEntity, boolean thirdPerson,
+    private void fpsreplay$afterUpdate(World area, Entity focusedEntity, boolean thirdPerson,
                                        boolean inverseView, float tickDelta, CallbackInfo ci) {
         Camera self = (Camera) (Object) this;
 

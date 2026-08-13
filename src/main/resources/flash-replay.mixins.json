@@ -7,7 +7,6 @@
     "GameRendererMixin",
     "CameraMixin",
     "ClientWorldMixin",
-    "KeyboardMixin",
     "InGameHudMixin",
     "GameMenuScreenMixin",
     "TitleScreenMixin"

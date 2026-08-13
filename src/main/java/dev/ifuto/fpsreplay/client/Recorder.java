@@ -130,13 +130,15 @@ public final class Recorder implements AutoCloseable {
 
         // Exact camera: prefer the captured render camera (includes bob/roll);
         // fall back to the raw eye position on the very first sample.
+        // FOV is read from the client option (the in-game dynamic FOV is not
+        // captured — it is not exposed via a stable public API).
         double x;
         double y;
         double z;
         float yaw;
         float pitch;
         float roll;
-        float fov;
+        float fov = (float) (double) client.options.getFov().getValue();
         float handSwing;
         if (CameraCapture.valid) {
             x = CameraCapture.x;
@@ -145,7 +147,6 @@ public final class Recorder implements AutoCloseable {
             yaw = CameraCapture.yaw;
             pitch = CameraCapture.pitch;
             roll = CameraCapture.roll;
-            fov = CameraCapture.fov;
         } else {
             var eye = player.getEyePos();
             x = eye.x;
@@ -154,7 +155,6 @@ public final class Recorder implements AutoCloseable {
             yaw = player.getYaw();
             pitch = player.getPitch();
             roll = 0.0f;
-            fov = (float) (double) client.options.getFov().getValue();
         }
         handSwing = player.handSwingProgress;
 

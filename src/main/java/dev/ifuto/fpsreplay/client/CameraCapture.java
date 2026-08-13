@@ -17,7 +17,6 @@ public final class CameraCapture {
     public static float yaw;
     public static float pitch;
     public static float roll;
-    public static float fov;
     public static boolean valid;
 
     private CameraCapture() {
@@ -25,18 +24,14 @@ public final class CameraCapture {
 
     /** Called from the camera mixin on every rendered frame. */
     public static void capture(Camera camera) {
-        x = camera.getPos().x;
-        y = camera.getPos().y;
-        z = camera.getPos().z;
-        yaw = camera.getYaw();
+        var pos = camera.getCameraPos();
+        x = pos.x;
+        y = pos.y;
+        z = pos.z;
+        yaw = camera.getCameraYaw();
         pitch = camera.getPitch();
         roll = extractRoll(camera);
         valid = true;
-    }
-
-    /** Called from the game renderer mixin on every rendered frame. */
-    public static void captureFov(double fov) {
-        CameraCapture.fov = (float) fov;
     }
 
     /**
@@ -58,7 +53,6 @@ public final class CameraCapture {
     /** Reset the capture (called when recording starts). */
     public static void reset() {
         valid = false;
-        fov = 70.0f;
         roll = 0.0f;
     }
 }
