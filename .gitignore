@@ -1,0 +1,34 @@
+# Gradle
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+
+# IntelliJ IDEA
+.idea/
+*.iml
+*.ipr
+*.iws
+out/
+
+# Eclipse
+.classpath
+.project
+.settings/
+bin/
+
+# VS Code
+.vscode/
+.settings/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Mod outputs
+run/
+logs/
+*.log
+
+# Local recordings (recorded replay files — keep them out of git)
+replays/
+recordings/

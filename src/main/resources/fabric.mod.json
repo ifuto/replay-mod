@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "id": "fps-replay",
+  "version": "${version}",
+  "name": "FPS Replay",
+  "description": "Lightweight first-person replay/recorder for Fabric. Records camera + entities + block changes as a compact packet stream, then re-renders offline at any resolution (4K/8K) and framerate (360fps+).",
+  "authors": [
+    "ifuto"
+  ],
+  "contact": {
+    "homepage": "https://github.com/ifuto/replay-mod",
+    "sources": "https://github.com/ifuto/replay-mod"
+  },
+  "license": "MIT",
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "dev.ifuto.fpsreplay.client.FpsReplayClient"
+    ]
+  },
+  "mixins": [
+    "fps-replay.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=0.16.0",
+    "fabric-api": "*",
+    "minecraft": "~1.21.1",
+    "java": ">=21"
+  }
+}

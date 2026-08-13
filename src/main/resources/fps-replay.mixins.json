@@ -1,0 +1,13 @@
+{
+  "required": true,
+  "package": "dev.ifuto.fpsreplay.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "client": [
+    "MinecraftClientMixin",
+    "GameRendererMixin",
+    "ClientWorldMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
