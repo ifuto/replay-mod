@@ -95,8 +95,10 @@ public final class Recorder implements AutoCloseable {
             return;
         }
         try {
+            MinecraftClient client = MinecraftClient.getInstance();
+            long tick = client.world != null ? client.world.getTime() : 0L;
             int stateId = Block.STATE_IDS.getRawId(state);
-            instance.writer.writeBlockChange(new BlockChange(pos.getX(), pos.getY(), pos.getZ(), stateId));
+            instance.writer.writeBlockChange(new BlockChange(tick, pos.getX(), pos.getY(), pos.getZ(), stateId));
         } catch (IOException e) {
             FlashReplayClient.LOGGER.warn("[Flash Replay] Failed to record block change", e);
         }

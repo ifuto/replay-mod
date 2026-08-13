@@ -58,6 +58,7 @@ public final class Renderer {
     private HudState lastAppliedHud;
     private final ReplayEntityManager entityManager = new ReplayEntityManager();
     private int savedMaxFps = -1;
+    private int appliedBlockIndex = 0;
 
     private Renderer(ReplayState state, Mode mode, Format format, int width, int height, int fps, File outDir) {
         this.state = state;
@@ -211,6 +212,12 @@ public final class Renderer {
         // chunk loading and entity culling all follow the camera.
         player.refreshPositionAndAngles(cam.x, cam.y - 1.62f, cam.z, cam.yaw, cam.pitch);
 
+        // Reproduce the hand-swing (mining / item use animation).
+        player.handSwingProgress = cam.handSwingProgress;
+
+        // Replay recorded block changes ("packets") in time order.
+        applyBlockChanges(client, currentTick);
+
         // Publish the exact pose for CameraMixin / GameRendererMixin to force.
         renderCamera[0] = (float) cam.x;
         renderCamera[1] = (float) cam.y;
@@ -249,6 +256,30 @@ public final class Renderer {
         frameIndex++;
         if (currentTick > state.endTick()) {
             stop(client);
+        }
+    }
+
+    /** Apply recorded block changes whose tick is at or before {@code tick}. */
+    private void applyBlockChanges(MinecraftClient client, double tick) {
+        if (!ReplayConfig.recordBlockChanges || client.world == null) {
+            return;
+        }
+        var changes = state.blockChanges;
+        while (appliedBlockIndex < changes.size()) {
+            var change = changes.get(appliedBlockIndex);
+            if (change.tick > tick) {
+                break;
+            }
+            try {
+                var state = net.minecraft.block.Block.STATE_IDS.get(change.stateId);
+                client.world.setBlockState(
+                        new net.minecraft.util.math.BlockPos(change.x, change.y, change.z),
+                        state,
+                        3);
+            } catch (Throwable t) {
+                // Best-effort: a block from another version/mod may not resolve.
+            }
+            appliedBlockIndex++;
         }
     }
 

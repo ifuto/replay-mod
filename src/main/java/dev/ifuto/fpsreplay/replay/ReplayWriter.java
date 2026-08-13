@@ -89,6 +89,7 @@ public final class ReplayWriter implements AutoCloseable {
 
     public void writeBlockChange(BlockChange change) throws IOException {
         out.writeByte(RecordType.BLOCK_CHANGE.id());
+        IoUtil.writeVarInt(out, (int) change.tick);
         out.writeInt(change.x);
         out.writeInt(change.y);
         out.writeInt(change.z);

@@ -83,11 +83,12 @@ public final class ReplayReader implements AutoCloseable {
                     lastTick = tick;
                 }
                 case BLOCK_CHANGE -> {
+                    long tick = IoUtil.readVarInt(body);
                     int x = body.readInt();
                     int y = body.readInt();
                     int z = body.readInt();
                     int stateId = IoUtil.readVarInt(body);
-                    state.blockChanges.add(new BlockChange(x, y, z, stateId));
+                    state.blockChanges.add(new BlockChange(tick, x, y, z, stateId));
                 }
                 case END -> {
                     return state;
