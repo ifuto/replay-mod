@@ -8,6 +8,7 @@ import net.minecraft.client.world.ClientWorld;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.attribute.EntityAttributes;
+import net.minecraft.entity.SpawnReason;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.registry.Registries;
 import net.minecraft.text.Text;
@@ -112,7 +113,7 @@ public final class ReplayEntityManager {
     private Entity createActor(ClientWorld world, EntityFrame frame) {
         try {
             var type = Registries.ENTITY_TYPE.get(frame.typeId);
-            Entity e = type.create(world);
+            Entity e = type.create(world, SpawnReason.COMMAND);
             if (e != null) {
                 world.spawnEntity(e);
             }
@@ -130,7 +131,7 @@ public final class ReplayEntityManager {
                     living.setHealth(frame.health);
                 }
                 if (frame.maxHealth > 0.0f) {
-                    var attr = living.getAttributeInstance(EntityAttributes.GENERIC_MAX_HEALTH);
+                    var attr = living.getAttributeInstance(EntityAttributes.MAX_HEALTH);
                     if (attr != null) {
                         attr.setBaseValue(frame.maxHealth);
                     }
@@ -138,12 +139,8 @@ public final class ReplayEntityManager {
                 living.setHeadYaw(frame.headYaw);
             }
             if (frame.customName != null) {
-                Text name = null;
-                try {
-                    name = Text.Serialization.fromJson(frame.customName, world.getRegistryManager());
-                } catch (Throwable ignored) {
-                }
-                actor.setCustomName(name != null ? name : Text.literal(frame.customName));
+                Text name = Texts.fromJson(frame.customName);
+                actor.setCustomName(name);
                 actor.setCustomNameVisible(true);
             }
             actor.setGlowing((frame.flags & EntityFrame.FLAG_GLOWING) != 0);

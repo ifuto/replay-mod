@@ -10,7 +10,7 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gl.Framebuffer;
 import net.minecraft.client.gl.SimpleFramebuffer;
 import net.minecraft.client.network.ClientPlayerEntity;
-import net.minecraft.client.texture.NativeImage;
+import net.minecraft.client.util.ScreenshotRecorder;
 
 import java.awt.image.BufferedImage;
 import java.io.File;
@@ -59,7 +59,7 @@ public final class Renderer {
     private HudState lastAppliedHud;
     private final ReplayEntityManager entityManager = new ReplayEntityManager();
     private int savedMaxFps = -1;
-    private double savedFov = -1;
+    private int savedFov = -1;
     private int appliedBlockIndex = 0;
 
     private Renderer(ReplayState state, Mode mode, Format format, int width, int height, int fps, File outDir) {
@@ -143,14 +143,13 @@ public final class Renderer {
             r.dt = (double) state.metadata.tickRate / (mode == Mode.PREVIEW ? 60 : fps);
 
             if (mode != Mode.PREVIEW) {
-                r.renderFb = new SimpleFramebuffer(width, height, true, false);
-                r.renderFb.setClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+                r.renderFb = new SimpleFramebuffer("flash-replay", width, height, true);
                 if (format == Format.MP4) {
                     r.mp4 = new Mp4Exporter(new File(outDir, "output.mp4"), fps);
                 }
             }
             r.lastNanos = System.nanoTime();
-            r.savedFov = (double) client.options.getFov().getValue();
+            r.savedFov = client.options.getFov().getValue();
 
             if (client.world != null) {
                 r.entityManager.start(client.world);
@@ -227,7 +226,7 @@ public final class Renderer {
         player.refreshPositionAndAngles(cam.x, cam.y - 1.62f, cam.z, cam.yaw, cam.pitch);
 
         // Reproduce the recorded FOV via the client option.
-        client.options.getFov().setValue((double) cam.fov);
+        client.options.getFov().setValue((int) Math.round(cam.fov));
 
         // Reproduce the hand-swing (mining / item use animation).
         player.handSwingProgress = cam.handSwingProgress;
@@ -369,53 +368,26 @@ public final class Renderer {
 
     private void captureFrame() {
         try {
-            NativeImage img = grabFrame();
-            if (format == Format.MP4) {
-                mp4.addFrame(toBufferedImage(img));
-                img.close();
-            } else {
-                File out = new File(outDir, String.format(Locale.ROOT, "frame_%08d.png", frameIndex));
-                img.writeTo(out);
-                img.close();
-            }
-        } catch (IOException e) {
+            ScreenshotRecorder.takeScreenshot(renderFb, img -> {
+                try {
+                    File out = new File(outDir, String.format(Locale.ROOT, "frame_%08d.png", frameIndex));
+                    img.writeTo(out);
+                    if (format == Format.MP4) {
+                        BufferedImage bi = javax.imageio.ImageIO.read(out);
+                        if (bi != null) {
+                            mp4.addFrame(bi);
+                        }
+                        out.delete();
+                    }
+                    img.close();
+                } catch (IOException e) {
+                    FlashReplayClient.LOGGER.error("[Flash Replay] Frame write failed", e);
+                }
+            });
+        } catch (Exception e) {
             FlashReplayClient.LOGGER.error("[Flash Replay] Frame capture failed", e);
             stop(MinecraftClient.getInstance());
         }
-    }
-
-    private NativeImage grabFrame() {
-        NativeImage img = new NativeImage(width, height, false);
-        renderFb.beginRead();
-        img.loadFromTextureImage(0, false);
-        renderFb.endRead();
-        img.mirrorVertically();
-        return img;
-    }
-
-    private static BufferedImage toBufferedImage(NativeImage img) {
-        int w = img.getWidth();
-        int h = img.getHeight();
-        int[] pixels = new int[w * h];
-        for (int y = 0; y < h; y++) {
-            int row = y * w;
-            for (int x = 0; x < w; x++) {
-                pixels[row + x] = abgrToArgb(img.getColor(x, y));
-            }
-        }
-        // Bulk copy: one setRGB call instead of w*h, much faster for 4K/8K.
-        BufferedImage bi = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
-        bi.setRGB(0, 0, w, h, pixels, 0, w);
-        return bi;
-    }
-
-    /** NativeImage stores colors as ABGR; BufferedImage needs ARGB. */
-    private static int abgrToArgb(int c) {
-        int a = (c >>> 24) & 0xFF;
-        int r = c & 0xFF;
-        int g = (c >>> 8) & 0xFF;
-        int b = (c >>> 16) & 0xFF;
-        return (a << 24) | (r << 16) | (g << 8) | b;
     }
 
     /** Compute the camera pose at fractional tick {@code t}. */

@@ -4,12 +4,14 @@ import dev.ifuto.fpsreplay.replay.HudState;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.network.ClientPlayerEntity;
 import net.minecraft.client.world.ClientWorld;
+import net.minecraft.entity.EquipmentSlot;
 import net.minecraft.entity.attribute.EntityAttributes;
 import net.minecraft.entity.effect.StatusEffectInstance;
 import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.item.ItemStack;
-import net.minecraft.nbt.NbtCompound;
-import net.minecraft.nbt.NbtHelper;
+import net.minecraft.nbt.NbtElement;
+import net.minecraft.nbt.NbtOps;
+import net.minecraft.nbt.StringNbtReader;
 import net.minecraft.registry.Registries;
 import net.minecraft.scoreboard.ScoreHolder;
 import net.minecraft.scoreboard.Scoreboard;
@@ -22,8 +24,8 @@ import net.minecraft.util.Formatting;
 
 /**
  * Applies a recorded {@link HudState} back onto the live client so the real
- * HUD (hearts, hunger, effect icons, scoreboard sidebar) renders exactly as it
- * did while recording.
+ * HUD (hearts, hunger, effect icons, scoreboard sidebar, hotbar) renders
+ * exactly as it did while recording.
  *
  * <p>Every section is best-effort and wrapped so a mapping mismatch in one
  * section never aborts rendering.</p>
@@ -44,7 +46,7 @@ public final class HudApplier {
 
         // Vitals.
         try {
-            player.getAttributeInstance(EntityAttributes.GENERIC_MAX_HEALTH).setBaseValue(h.maxHealth);
+            player.getAttributeInstance(EntityAttributes.MAX_HEALTH).setBaseValue(h.maxHealth);
             player.setHealth(h.health);
             player.setAbsorptionAmount(h.absorption);
             player.getHungerManager().setFoodLevel(h.food);
@@ -61,18 +63,18 @@ public final class HudApplier {
         // Hotbar / inventory.
         try {
             PlayerInventory inv = player.getInventory();
-            if (h.mainInventory.size() == inv.main.size()) {
-                for (int i = 0; i < inv.main.size(); i++) {
-                    inv.main.set(i, decodeItem(h.mainInventory.get(i), world));
-                }
+            var main = inv.getMainStacks();
+            for (int i = 0; i < main.size() && i < h.mainInventory.size(); i++) {
+                main.set(i, decodeItem(h.mainInventory.get(i), world));
             }
-            if (h.armorSlots.size() == inv.armor.size()) {
-                for (int i = 0; i < inv.armor.size(); i++) {
-                    inv.armor.set(i, decodeItem(h.armorSlots.get(i), world));
-                }
+            if (h.armorSlots.size() >= 4) {
+                player.equipStack(EquipmentSlot.FEET, decodeItem(h.armorSlots.get(0), world));
+                player.equipStack(EquipmentSlot.LEGS, decodeItem(h.armorSlots.get(1), world));
+                player.equipStack(EquipmentSlot.CHEST, decodeItem(h.armorSlots.get(2), world));
+                player.equipStack(EquipmentSlot.HEAD, decodeItem(h.armorSlots.get(3), world));
             }
-            inv.offHand.set(0, decodeItem(h.offHand, world));
-            inv.selectedSlot = clamp(h.selectedSlot, 0, 8);
+            player.equipStack(EquipmentSlot.OFFHAND, decodeItem(h.offHand, world));
+            inv.setSelectedSlot(clamp(h.selectedSlot, 0, 8));
         } catch (Throwable t) {
             FlashReplayClient.LOGGER.warn("[Flash Replay] inventory apply failed", t);
         }
@@ -99,7 +101,6 @@ public final class HudApplier {
             return;
         }
         try {
-            // Clear existing objectives and teams.
             for (ScoreboardObjective existing : sb.getObjectives()) {
                 sb.removeObjective(existing);
             }
@@ -107,9 +108,8 @@ public final class HudApplier {
                 sb.removeTeam(existing);
             }
 
-            // Rebuild objectives.
             for (HudState.Objective o : h.objectives) {
-                Text displayName = textFromJson(o.displayName, o.displayName);
+                Text displayName = Texts.fromJson(o.displayName);
                 ScoreboardObjective objective = sb.addObjective(
                         o.name, ScoreboardCriterion.DUMMY, displayName,
                         ScoreboardCriterion.RenderType.INTEGER, false, null);
@@ -121,12 +121,11 @@ public final class HudApplier {
                 }
             }
 
-            // Rebuild teams.
             for (HudState.Team t : h.teams) {
                 Team team = sb.addTeam(t.name);
-                team.setDisplayName(textFromJson(t.displayName, t.displayName));
-                team.setPrefix(textFromJson(t.prefix, t.prefix));
-                team.setSuffix(textFromJson(t.suffix, t.suffix));
+                team.setDisplayName(Texts.fromJson(t.displayName));
+                team.setPrefix(Texts.fromJson(t.prefix));
+                team.setSuffix(Texts.fromJson(t.suffix));
                 team.setColor(t.colorName == null || t.colorName.isEmpty() ? null : Formatting.byName(t.colorName));
                 team.setFriendlyFireAllowed(t.friendlyFire);
                 team.setShowFriendlyInvisibles(t.seeFriendlyInvisibles);
@@ -135,7 +134,6 @@ public final class HudApplier {
                 team.setDeathMessageVisibilityRule(Team.VisibilityRule.values()[clamp(t.deathMessageVisibility, 0, Team.VisibilityRule.values().length - 1)]);
             }
 
-            // Rebuild scores.
             for (HudState.Score s : h.scores) {
                 ScoreboardObjective objective = sb.getNullableObjective(s.objective);
                 if (objective != null) {
@@ -144,18 +142,6 @@ public final class HudApplier {
             }
         } catch (Throwable t) {
             FlashReplayClient.LOGGER.warn("[Flash Replay] scoreboard apply failed", t);
-        }
-    }
-
-    private static Text textFromJson(String json, String fallback) {
-        if (json == null || json.isEmpty()) {
-            return Text.literal(fallback == null ? "" : fallback);
-        }
-        try {
-            Text text = Text.Serialization.fromJson(json, MinecraftClient.getInstance().world.getRegistryManager());
-            return text != null ? text : Text.literal(fallback);
-        } catch (Throwable t) {
-            return Text.literal(fallback == null ? "" : fallback);
         }
     }
 
@@ -169,8 +155,11 @@ public final class HudApplier {
             return ItemStack.EMPTY;
         }
         try {
-            NbtCompound nbt = NbtHelper.fromNbtProviderString(snbt);
-            return ItemStack.fromNbt(world.getRegistryManager(), nbt).orElse(ItemStack.EMPTY);
+            NbtElement nbt = StringNbtReader.parse(snbt);
+            return ItemStack.CODEC
+                    .parse(world.getRegistryManager().getOps(NbtOps.INSTANCE), nbt)
+                    .result()
+                    .orElse(ItemStack.EMPTY);
         } catch (Throwable t) {
             return ItemStack.EMPTY;
         }

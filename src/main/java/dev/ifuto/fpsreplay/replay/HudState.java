@@ -70,12 +70,12 @@ public final class HudState {
         public UUID uuid;
         public String name;
         public int latency;
-        /** 0=survival, 1=creative, 2=adventure, 3=spectator. */
-        public int gameMode;
+        /** Game mode id string (e.g. "survival", "creative"). */
+        public String gameMode;
         /** JSON text, or null. */
         public String displayName;
 
-        public PlayerEntry(UUID uuid, String name, int latency, int gameMode, String displayName) {
+        public PlayerEntry(UUID uuid, String name, int latency, String gameMode, String displayName) {
             this.uuid = uuid;
             this.name = name;
             this.latency = latency;
@@ -190,7 +190,7 @@ public final class HudState {
             out.writeLong(p.uuid.getLeastSignificantBits());
             IoUtil.writeString(out, p.name);
             IoUtil.writeVarInt(out, p.latency);
-            out.writeByte(p.gameMode & 0xFF);
+            IoUtil.writeString(out, p.gameMode == null ? "" : p.gameMode);
             out.writeBoolean(p.displayName != null);
             if (p.displayName != null) {
                 IoUtil.writeString(out, p.displayName);
@@ -272,7 +272,7 @@ public final class HudState {
             UUID uuid = new UUID(msb, lsb);
             String name = IoUtil.readString(in);
             int latency = IoUtil.readVarInt(in);
-            int gameMode = in.readUnsignedByte();
+            String gameMode = IoUtil.readString(in);
             String displayName = in.readBoolean() ? IoUtil.readString(in) : null;
             h.playerList.add(new PlayerEntry(uuid, name, latency, gameMode, displayName));
         }

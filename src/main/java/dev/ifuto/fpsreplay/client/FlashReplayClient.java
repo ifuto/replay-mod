@@ -20,17 +20,6 @@ public final class FlashReplayClient implements ClientModInitializer {
 
         ReplayCommands.register();
 
-        // Register button textures after the client (and its resource manager)
-        // are fully started — doing it in onInitializeClient NPEs because the
-        // resource manager isn't ready yet.
-        ClientLifecycleEvents.CLIENT_STARTED.register(client -> {
-            try {
-                FlashTextures.registerAll(client);
-            } catch (Throwable t) {
-                LOGGER.warn("[Flash Replay] texture registration failed", t);
-            }
-        });
-
         // Sample the camera once per client tick while recording, and poll
         // preview keys (GLFW-based, no mixin) while previewing.
         ClientTickEvents.END_CLIENT_TICK.register(client -> {

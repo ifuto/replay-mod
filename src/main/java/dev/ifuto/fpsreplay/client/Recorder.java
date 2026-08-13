@@ -16,7 +16,6 @@ import net.minecraft.client.world.ClientWorld;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.registry.Registries;
-import net.minecraft.text.Text;
 import net.minecraft.util.math.BlockPos;
 
 import java.io.File;
@@ -65,7 +64,7 @@ public final class Recorder implements AutoCloseable {
         File file = new File(dir, name + ".fpr");
 
         ReplayMetadata meta = new ReplayMetadata(
-                SharedConstants.getGameVersion().getName(),
+                SharedConstants.getGameVersion().getId(),
                 name,
                 resolveSeed(client),
                 20,
@@ -138,7 +137,7 @@ public final class Recorder implements AutoCloseable {
         float yaw;
         float pitch;
         float roll;
-        float fov = (float) (double) client.options.getFov().getValue();
+        float fov = client.options.getFov().getValue().floatValue();
         float handSwing;
         if (CameraCapture.valid) {
             x = CameraCapture.x;
@@ -209,7 +208,7 @@ public final class Recorder implements AutoCloseable {
             }
             String customName = null;
             if (entity.hasCustomName()) {
-                customName = Text.Serialization.toJsonString(entity.getCustomName(), world.getRegistryManager());
+                customName = Texts.toJson(entity.getCustomName());
             }
             entityScratch.add(new EntityFrame(
                     entity.getId(), world.getTime(), typeId,

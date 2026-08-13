@@ -5,25 +5,25 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.network.ClientPlayerEntity;
 import net.minecraft.client.network.PlayerListEntry;
 import net.minecraft.client.world.ClientWorld;
+import net.minecraft.entity.EquipmentSlot;
 import net.minecraft.entity.effect.StatusEffectInstance;
 import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.item.ItemStack;
-import net.minecraft.nbt.NbtCompound;
 import net.minecraft.nbt.NbtElement;
-import net.minecraft.nbt.NbtHelper;
+import net.minecraft.nbt.NbtOps;
+import net.minecraft.nbt.StringNbtReader;
 import net.minecraft.registry.Registries;
 import net.minecraft.scoreboard.Scoreboard;
 import net.minecraft.scoreboard.ScoreboardDisplaySlot;
 import net.minecraft.scoreboard.ScoreboardEntry;
 import net.minecraft.scoreboard.ScoreboardObjective;
 import net.minecraft.scoreboard.Team;
-import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
 
 /**
  * Builds a {@link HudState} snapshot from the live client. Captures player
- * vitals, status effects, the scoreboard, and the tab player list so the
- * replay can reproduce the full HUD.
+ * vitals, status effects, the scoreboard, the hotbar/inventory, and the tab
+ * player list so the replay can reproduce the full HUD.
  */
 public final class HudCapture {
     private HudCapture() {
@@ -54,14 +54,16 @@ public final class HudCapture {
 
         // --- Hotbar / inventory ---
         PlayerInventory inv = player.getInventory();
-        h.selectedSlot = inv.selectedSlot;
-        for (int i = 0; i < inv.main.size(); i++) {
-            h.mainInventory.add(encodeItem(inv.main.get(i), world));
+        h.selectedSlot = inv.getSelectedSlot();
+        for (ItemStack stack : inv.getMainStacks()) {
+            h.mainInventory.add(encodeItem(stack, world));
         }
-        for (int i = 0; i < inv.armor.size(); i++) {
-            h.armorSlots.add(encodeItem(inv.armor.get(i), world));
-        }
-        h.offHand = encodeItem(inv.offHand.get(0), world);
+        // armor: feet, legs, chest, head
+        h.armorSlots.add(encodeItem(player.getEquippedStack(EquipmentSlot.FEET), world));
+        h.armorSlots.add(encodeItem(player.getEquippedStack(EquipmentSlot.LEGS), world));
+        h.armorSlots.add(encodeItem(player.getEquippedStack(EquipmentSlot.CHEST), world));
+        h.armorSlots.add(encodeItem(player.getEquippedStack(EquipmentSlot.HEAD), world));
+        h.offHand = encodeItem(player.getEquippedStack(EquipmentSlot.OFFHAND), world);
 
         // --- Status effects ---
         for (StatusEffectInstance inst : player.getStatusEffects()) {
@@ -73,12 +75,11 @@ public final class HudCapture {
         // --- Tab player list ---
         if (client.getNetworkHandler() != null) {
             for (PlayerListEntry entry : client.getNetworkHandler().getPlayerList()) {
-                String name = entry.getProfile() != null ? entry.getProfile().getName() : "";
+                String name = entry.getProfile() != null ? entry.getProfile().name() : "";
+                java.util.UUID uuid = entry.getProfile() != null ? entry.getProfile().id() : new java.util.UUID(0, 0);
+                String gameMode = entry.getGameMode() != null ? entry.getGameMode().getId() : "";
                 h.playerList.add(new HudState.PlayerEntry(
-                        entry.getProfile() != null ? entry.getProfile().getId() : new java.util.UUID(0, 0),
-                        name, entry.getLatency(),
-                        entry.getGameMode() != null ? entry.getGameMode().getId() : 0,
-                        textJson(entry.getDisplayName(), world)));
+                        uuid, name, entry.getLatency(), gameMode, Texts.toJson(entry.getDisplayName())));
             }
         }
 
@@ -94,13 +95,13 @@ public final class HudCapture {
                 } else if (objective == sb.getObjectiveForSlot(ScoreboardDisplaySlot.BELOW_NAME)) {
                     slot = 2;
                 }
-                h.objectives.add(new HudState.Objective(objective.getName(), textJson(objective.getDisplayName(), world), slot));
+                h.objectives.add(new HudState.Objective(objective.getName(), Texts.toJson(objective.getDisplayName()), slot));
             }
             for (Team team : sb.getTeams()) {
                 Formatting color = team.getColor();
                 h.teams.add(new HudState.Team(
-                        team.getName(), textJson(team.getDisplayName(), world),
-                        textJson(team.getPrefix(), world), textJson(team.getSuffix(), world),
+                        team.getName(), Texts.toJson(team.getDisplayName()),
+                        Texts.toJson(team.getPrefix()), Texts.toJson(team.getSuffix()),
                         color != null ? color.getName() : "",
                         team.isFriendlyFireAllowed(), team.shouldShowFriendlyInvisibles(),
                         team.getCollisionRule().ordinal(),
@@ -109,26 +110,12 @@ public final class HudCapture {
             }
             for (ScoreboardObjective objective : sb.getObjectives()) {
                 for (ScoreboardEntry entry : sb.getScoreboardEntries(objective)) {
-                    h.scores.add(new HudState.Score(
-                            objective.getName(),
-                            entry.owner(),
-                            entry.value()));
+                    h.scores.add(new HudState.Score(objective.getName(), entry.owner(), entry.value()));
                 }
             }
         }
 
         return h;
-    }
-
-    private static String textJson(Text text, ClientWorld world) {
-        if (text == null) {
-            return null;
-        }
-        try {
-            return Text.Serialization.toJsonString(text, world.getRegistryManager());
-        } catch (Throwable t) {
-            return text.getString();
-        }
     }
 
     /** Serialize an item stack to SNBT (empty string for empty slots). */
@@ -137,11 +124,11 @@ public final class HudCapture {
             return "";
         }
         try {
-            NbtElement nbt = stack.encode(world.getRegistryManager());
-            if (nbt instanceof NbtCompound compound) {
-                return NbtHelper.toNbtProviderString(compound);
-            }
-            return "";
+            NbtElement nbt = ItemStack.CODEC
+                    .encodeStart(world.getRegistryManager().getOps(NbtOps.INSTANCE), stack)
+                    .result()
+                    .orElse(null);
+            return nbt == null ? "" : nbt.asString();
         } catch (Throwable t) {
             return "";
         }
