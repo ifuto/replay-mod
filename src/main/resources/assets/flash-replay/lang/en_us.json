@@ -1,0 +1,10 @@
+{
+  "mod.flash-replay.description": "Lightweight first-person replay/recorder for Fabric. Records the camera, entities, blocks and HUD, then re-renders offline at any resolution and framerate (MP4/PNG).",
+
+  "gui.flash-replay.replay_list": "Replay List",
+  "gui.flash-replay.record_start": "● Record",
+  "gui.flash-replay.record_stop": "■ Stop Recording",
+  "gui.flash-replay.back": "Back",
+  "gui.flash-replay.preview_hint": "Preview: Space=play/pause  ←/→=seek  Esc=exit",
+  "gui.flash-replay.export_hint": "Export: /replay render <name> <WxH> <fps> [mp4|png]"
+}

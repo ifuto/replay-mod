@@ -1,0 +1,10 @@
+{
+  "mod.flash-replay.description": "軽量な1人称視点録画Mod。カメラ・エンティティ・ブロック・HUDを記録し、あとから任意の解像度・FPSで再レンダリング（MP4/PNG出力）。",
+
+  "gui.flash-replay.replay_list": "リプレイ一覧",
+  "gui.flash-replay.record_start": "● 録画開始",
+  "gui.flash-replay.record_stop": "■ 録画停止",
+  "gui.flash-replay.back": "戻る",
+  "gui.flash-replay.preview_hint": "プレビュー: Space=再生/一時停止  ←/→=シーク  Esc=終了",
+  "gui.flash-replay.export_hint": "エクスポート: /replay render <name> <WxH> <fps> [mp4|png]"
+}
