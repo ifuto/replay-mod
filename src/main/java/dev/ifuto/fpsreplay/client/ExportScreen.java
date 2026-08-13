@@ -149,7 +149,8 @@ public final class ExportScreen extends Screen {
 
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-        renderBackground(context, mouseX, mouseY, delta);
+        // 1.21.6+: background is rendered by super.render(); do not call
+        // renderBackground() here (would double-blur and crash).
         context.drawCenteredTextWithShadow(textRenderer, title, width / 2, 14, 0xFFFFFF);
         context.drawCenteredTextWithShadow(textRenderer, Text.literal(replayFile.getName()), width / 2, 30, 0xAAAAAA);
 

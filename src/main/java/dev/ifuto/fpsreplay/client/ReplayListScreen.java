@@ -79,7 +79,9 @@ public final class ReplayListScreen extends Screen {
 
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-        renderBackground(context, mouseX, mouseY, delta);
+        // Note: in 1.21.6+ Screen.render() renders the (blurred) background
+        // automatically; calling renderBackground() again throws
+        // "Can only blur once per frame".
         context.drawCenteredTextWithShadow(textRenderer, title, width / 2, 14, 0xFFFFFF);
         super.render(context, mouseX, mouseY, delta);
     }
