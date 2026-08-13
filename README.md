@@ -8,6 +8,8 @@ Minecraft Fabric 向けの **軽量 1人称視点録画 Mod** です。
 
 > 日本語 / English 両対応（`assets/flash-replay/lang/` の ja_jp.json / en_us.json）。
 
+> ロゴ・ボタン画像は `images/` に同梱（`flashreplay-logo-2.png` は Mod アイコンとして使用中）。
+
 ---
 
 ## 主な機能
@@ -116,7 +118,7 @@ fabric_version=0.102.0+1.21.1
 
 ---
 
-## 設定（`config/fps-replay.properties`）
+## 設定（`config/flash-replay.properties`）
 
 | キー | 既定値 | 説明 |
 | --- | --- | --- |

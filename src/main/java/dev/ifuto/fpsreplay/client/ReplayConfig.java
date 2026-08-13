@@ -44,7 +44,7 @@ public final class ReplayConfig {
     }
 
     public static Path configFile() {
-        return FabricLoader.getInstance().getConfigDir().resolve("fps-replay.properties");
+        return FabricLoader.getInstance().getConfigDir().resolve("flash-replay.properties");
     }
 
     public static void load() {
