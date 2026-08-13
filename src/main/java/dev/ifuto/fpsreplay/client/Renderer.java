@@ -142,7 +142,7 @@ public final class Renderer {
             r.dt = (double) state.metadata.tickRate / (mode == Mode.PREVIEW ? 60 : fps);
 
             if (mode != Mode.PREVIEW) {
-                r.renderFb = new SimpleFramebuffer(width, height, true);
+                r.renderFb = new SimpleFramebuffer(width, height, true, false);
                 r.renderFb.setClearColor(0.0f, 0.0f, 0.0f, 1.0f);
                 if (format == Format.MP4) {
                     r.mp4 = new Mp4Exporter(new File(outDir, "output.mp4"), fps);
