@@ -111,17 +111,17 @@ public final class ReplayReader implements AutoCloseable {
 
                     int deltaCount = body.readInt();
                     for (int i = 0; i < deltaCount; i++) {
-                        int id = IoUtil.readVarInt(body);
+                        int entityId = IoUtil.readVarInt(body);
                         int dx = IoUtil.readVarIntZigZag(body);
                         int dy = IoUtil.readVarIntZigZag(body);
                         int dz = IoUtil.readVarIntZigZag(body);
                         int dyaw = IoUtil.readVarIntZigZag(body);
                         int dpitch = IoUtil.readVarIntZigZag(body);
                         int dheadYaw = IoUtil.readVarIntZigZag(body);
-                        EntityFrame prev = lastEntity.get(id);
+                        EntityFrame prev = lastEntity.get(entityId);
                         if (prev != null) {
                             EntityFrame cur = new EntityFrame(
-                                    id, tick, prev.typeId,
+                                    entityId, tick, prev.typeId,
                                     prev.x + dx / ReplayWriter.POS_SCALE,
                                     prev.y + dy / ReplayWriter.POS_SCALE,
                                     prev.z + dz / ReplayWriter.POS_SCALE,
@@ -129,8 +129,8 @@ public final class ReplayReader implements AutoCloseable {
                                     prev.pitch + dpitch / (float) ReplayWriter.ROT_SCALE,
                                     prev.headYaw + dheadYaw / (float) ReplayWriter.ROT_SCALE,
                                     prev.health, prev.maxHealth, prev.customName, prev.flags);
-                            state.entityTracks.computeIfAbsent(id, k -> new ArrayList<>()).add(cur);
-                            lastEntity.put(id, cur);
+                            state.entityTracks.computeIfAbsent(entityId, k -> new ArrayList<>()).add(cur);
+                            lastEntity.put(entityId, cur);
                         }
                     }
                     lastTick = tick;
