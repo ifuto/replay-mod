@@ -68,12 +68,8 @@ public final class ReplayListScreen extends Screen {
         if (!inWorld) {
             return;
         }
-        MinecraftClient client = MinecraftClient.getInstance();
-        client.setScreen(null);
-        Renderer.preview(client, f);
-        if (client.player != null) {
-            client.inGameHud.getChatHud().addMessage(Text.translatable("gui.flash-replay.preview_hint"));
-        }
+        // Preview inside a dedicated GUI screen (game is paused/frozen).
+        MinecraftClient.getInstance().setScreen(new ReplayPreviewScreen(this, f));
     }
 
     private void export(File f) {

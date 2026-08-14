@@ -120,20 +120,17 @@ public final class ReplayWriter implements AutoCloseable {
         IoUtil.writeVarInt(out, change.stateId);
     }
 
-    /** Write a full terrain chunk column (palette-compressed). */
+    /** Write a surface-only terrain column (256 heights + 256 block states). */
     public void writeChunkColumn(ChunkColumn column) throws IOException {
         out.writeByte(RecordType.CHUNK.id());
         out.writeInt(column.originX);
         out.writeInt(column.originZ);
         out.writeInt(column.bottomY);
-        IoUtil.writeVarInt(out, column.height);
-
-        IoUtil.writeVarInt(out, column.palette.length);
-        for (int stateId : column.palette) {
-            IoUtil.writeVarInt(out, stateId);
+        for (int h : column.heights) {
+            IoUtil.writeVarIntZigZag(out, h);
         }
-        for (int idx : column.data) {
-            IoUtil.writeVarInt(out, idx);
+        for (int s : column.states) {
+            IoUtil.writeVarInt(out, s);
         }
     }
 

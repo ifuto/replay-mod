@@ -214,8 +214,11 @@ public final class Renderer {
             r.renderFb.delete();
             r.renderFb = null;
         }
-        FlashReplayClient.LOGGER.info("[Flash Replay] {} finished ({} frames)",
-                r.mode == Mode.PREVIEW ? "Preview" : "Rendering", r.frameIndex);
+        if (r.mode == Mode.PREVIEW) {
+            FlashReplayClient.LOGGER.info("[Flash Replay] Preview stopped");
+        } else {
+            FlashReplayClient.LOGGER.info("[Flash Replay] Rendering finished ({} frames)", r.frameIndex);
+        }
     }
 
     /** Called at the start of the client render, before the world is drawn. */
@@ -237,16 +240,13 @@ public final class Renderer {
         // Reproduce the hand-swing (mining / item use animation).
         player.handSwingProgress = cam.handSwingProgress;
 
-        // Replay recorded block changes ("packets") in time order.
-        applyBlockChanges(client, currentTick);
-
         // Publish the exact pose for CameraMixin / GameRendererMixin to force.
         renderCamera[0] = (float) cam.x;
         renderCamera[1] = (float) cam.y;
         renderCamera[2] = (float) cam.z;
         renderCamera[3] = cam.yaw;
         renderCamera[4] = cam.pitch;
-        renderCamera[5] = cam.roll;
+        renderCamera[5] = 0.0f; // roll is intentionally not applied
         renderCamera[6] = cam.fov;
 
         // Reproduce recorded entities (mobs etc.) at their interpolated pose.
@@ -254,12 +254,16 @@ public final class Renderer {
             entityManager.update(client, state, currentTick);
         }
 
-        // Reproduce the HUD (hearts / hunger / effects / scoreboard), only
-        // when the relevant keyframe changes (rebuilding is not free).
-        HudState hud = state.hudStateAt((long) Math.floor(currentTick));
-        if (hud != lastAppliedHud) {
-            HudApplier.apply(client, hud);
-            lastAppliedHud = hud;
+        // World-fidelity operations are export-only: mutating the live world
+        // (block changes) or rebuilding the HUD is expensive and irrelevant
+        // for a live preview. Keeps preview lightweight and the game untouched.
+        if (mode != Mode.PREVIEW) {
+            applyBlockChanges(client, currentTick);
+            HudState hud = state.hudStateAt((long) Math.floor(currentTick));
+            if (hud != lastAppliedHud) {
+                HudApplier.apply(client, hud);
+                lastAppliedHud = hud;
+            }
         }
     }
 
@@ -332,10 +336,6 @@ public final class Renderer {
         if (r == null) {
             return;
         }
-        if (edge(window, org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE)) {
-            stop(client);
-            return;
-        }
         if (edge(window, org.lwjgl.glfw.GLFW.GLFW_KEY_SPACE)) {
             r.handlePreviewKey(org.lwjgl.glfw.GLFW.GLFW_KEY_SPACE);
         } else if (edge(window, org.lwjgl.glfw.GLFW.GLFW_KEY_LEFT)) {
@@ -343,6 +343,7 @@ public final class Renderer {
         } else if (edge(window, org.lwjgl.glfw.GLFW.GLFW_KEY_RIGHT)) {
             r.handlePreviewKey(org.lwjgl.glfw.GLFW.GLFW_KEY_RIGHT);
         }
+        // Escape is handled by the preview screen itself (closes the screen).
     }
 
     private static final java.util.Set<Integer> pressedKeys = new java.util.HashSet<>();

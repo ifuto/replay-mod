@@ -47,6 +47,9 @@ public final class Recorder implements AutoCloseable {
     private final Map<Integer, EntityFrame> lastEntity = new HashMap<>();
     private final Map<Integer, Long> lastEntityFullTick = new HashMap<>();
     private final TerrainRecorder terrainRecorder = new TerrainRecorder();
+    /** Pending block changes, drained once per tick (avoids per-change I/O lag). */
+    private final java.util.concurrent.ConcurrentLinkedQueue<BlockChange> blockQueue = new java.util.concurrent.ConcurrentLinkedQueue<>();
+    private static final int MAX_BLOCK_CHANGES_PER_TICK = 2000;
 
     private Recorder(ReplayWriter writer, File file) {
         this.writer = writer;
@@ -104,13 +107,12 @@ public final class Recorder implements AutoCloseable {
         if (instance == null || !ReplayConfig.recordBlockChanges) {
             return;
         }
-        try {
-            MinecraftClient client = MinecraftClient.getInstance();
-            long tick = client.world != null ? client.world.getTime() : 0L;
-            int stateId = Block.STATE_IDS.getRawId(state);
-            instance.writer.writeBlockChange(new BlockChange(tick, pos.getX(), pos.getY(), pos.getZ(), stateId));
-        } catch (IOException e) {
-            FlashReplayClient.LOGGER.warn("[Flash Replay] Failed to record block change", e);
+        // Enqueue only (no I/O on the hot path). Drained once per tick.
+        MinecraftClient client = MinecraftClient.getInstance();
+        long tick = client.world != null ? client.world.getTime() : 0L;
+        int stateId = Block.STATE_IDS.getRawId(state);
+        if (instance.blockQueue.size() < 100_000) {
+            instance.blockQueue.add(new BlockChange(tick, pos.getX(), pos.getY(), pos.getZ(), stateId));
         }
     }
 
@@ -147,7 +149,6 @@ public final class Recorder implements AutoCloseable {
         double z;
         float yaw;
         float pitch;
-        float roll;
         float fov = client.options.getFov().getValue().floatValue();
         float handSwing;
         if (CameraCapture.valid) {
@@ -156,7 +157,6 @@ public final class Recorder implements AutoCloseable {
             z = CameraCapture.z;
             yaw = CameraCapture.yaw;
             pitch = CameraCapture.pitch;
-            roll = CameraCapture.roll;
         } else {
             var eye = player.getEyePos();
             x = eye.x;
@@ -164,7 +164,6 @@ public final class Recorder implements AutoCloseable {
             z = eye.z;
             yaw = player.getYaw();
             pitch = player.getPitch();
-            roll = 0.0f;
         }
         handSwing = player.handSwingProgress;
 
@@ -173,7 +172,7 @@ public final class Recorder implements AutoCloseable {
                 // Keyframe: capture HUD, anchor the delta encoding, and
                 // snapshot any newly-seen terrain columns. Written first so the
                 // tick delta is anchored to an absolute tick on the first record.
-                lastKey = new CameraFrame(tick, x, y, z, yaw, pitch, roll, fov, handSwing);
+                lastKey = new CameraFrame(tick, x, y, z, yaw, pitch, 0.0f, fov, handSwing);
                 writer.writeKeyframe(tick, lastKey, HudCapture.capture(client));
                 terrainRecorder.enqueueRadius(client, ReplayConfig.terrainChunkRadius);
                 lastKeyTick = tick;
@@ -181,12 +180,20 @@ public final class Recorder implements AutoCloseable {
                 writer.writeTick(
                         tick,
                         x - lastKey.x, y - lastKey.y, z - lastKey.z,
-                        yaw - lastKey.yaw, pitch - lastKey.pitch, roll - lastKey.roll,
+                        yaw - lastKey.yaw, pitch - lastKey.pitch, 0.0f,
                         fov - lastKey.fov, handSwing);
             }
 
             // Drain terrain snapshot queue a few columns per tick (no spikes).
             terrainRecorder.drain(client, writer);
+
+            // Flush buffered block changes (bounded, batched once per tick).
+            int flushed = 0;
+            BlockChange bc;
+            while (flushed < MAX_BLOCK_CHANGES_PER_TICK && (bc = blockQueue.poll()) != null) {
+                writer.writeBlockChange(bc);
+                flushed++;
+            }
 
             // Entities: new/refreshed entities are written at full precision;
             // moved entities as quantized deltas; static entities are skipped.

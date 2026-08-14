@@ -86,18 +86,16 @@ public final class ReplayReader implements AutoCloseable {
                     int originX = body.readInt();
                     int originZ = body.readInt();
                     int bottomY = body.readInt();
-                    int height = IoUtil.readVarInt(body);
-                    int paletteSize = IoUtil.readVarInt(body);
-                    int[] palette = new int[paletteSize];
-                    for (int i = 0; i < paletteSize; i++) {
-                        palette[i] = IoUtil.readVarInt(body);
+                    int[] heights = new int[256];
+                    for (int i = 0; i < 256; i++) {
+                        heights[i] = IoUtil.readVarIntZigZag(body);
                     }
-                    int[] data = new int[16 * 16 * height];
-                    for (int i = 0; i < data.length; i++) {
-                        data[i] = IoUtil.readVarInt(body);
+                    int[] states = new int[256];
+                    for (int i = 0; i < 256; i++) {
+                        states[i] = IoUtil.readVarInt(body);
                     }
                     state.chunkColumns.put(ChunkColumn.key(originX, originZ),
-                            new ChunkColumn(originX, originZ, bottomY, height, palette, data));
+                            new ChunkColumn(originX, originZ, bottomY, heights, states));
                 }
                 case ENTITY -> {
                     long tick = lastTick + IoUtil.readVarIntZigZag(body);

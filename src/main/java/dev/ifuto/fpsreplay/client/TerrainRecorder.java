@@ -11,22 +11,16 @@ import net.minecraft.util.math.BlockPos;
 import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.Deque;
-import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Map;
 import java.util.Set;
 
 /**
- * Captures the world's terrain (block columns) while recording, so the replay
- * can reconstruct the world independently of the live client world.
- *
- * <p>Instead of snapshotting every new column in a single tick (which causes
- * a visible FPS spike), newly-seen columns are pushed onto a queue and drained
- * a few at a time across ticks. Each column is palette-compressed into a
- * {@code CHUNK} record; subsequent edits are captured by {@code BLOCK_CHANGE}.</p>
+ * Captures only the <b>visible surface</b> of the terrain while recording —
+ * for each 16x16 column, the topmost non-air block per (x,z) and its height.
+ * This keeps recording cheap (no full 3D column scans) and avoids FPS spikes
+ * by draining a couple of columns per tick.
  */
 public final class TerrainRecorder {
-    /** Max columns written per tick (bounds the per-tick snapshot cost). */
     private static final int MAX_PER_TICK = 2;
 
     private final Set<Long> recorded = new HashSet<>();
@@ -37,10 +31,6 @@ public final class TerrainRecorder {
         recorded.clear();
         queued.clear();
         queue.clear();
-    }
-
-    public boolean hasPending() {
-        return !queue.isEmpty();
     }
 
     /** Enqueue not-yet-recorded columns within {@code chunkRadius} of the player. */
@@ -90,38 +80,35 @@ public final class TerrainRecorder {
 
     private ChunkColumn snapshotColumn(ClientWorld world, int originX, int originZ) {
         int bottomY = world.getBottomY();
-        int height = world.getHeight();
-        int topY = bottomY + height;
+        int topY = bottomY + world.getHeight();
+        int airId = Block.STATE_IDS.getRawId(net.minecraft.block.Blocks.AIR.getDefaultState());
 
-        Map<Integer, Integer> paletteMap = new HashMap<>();
-        java.util.List<Integer> palette = new java.util.ArrayList<>();
-        palette.add(Block.STATE_IDS.getRawId(net.minecraft.block.Blocks.AIR.getDefaultState()));
-        paletteMap.put(palette.get(0), 0);
-
-        int[] data = new int[16 * 16 * height];
-        int i = 0;
+        int[] heights = new int[256];
+        int[] states = new int[256];
         BlockPos.Mutable pos = new BlockPos.Mutable();
-        for (int y = bottomY; y < topY; y++) {
-            for (int z = 0; z < 16; z++) {
-                for (int x = 0; x < 16; x++) {
-                    pos.set(originX + x, y, originZ + z);
+
+        for (int lz = 0; lz < 16; lz++) {
+            for (int lx = 0; lx < 16; lx++) {
+                int x = originX + lx;
+                int z = originZ + lz;
+                int foundY = bottomY - 1;
+                int foundState = airId;
+                // Scan top-down: first non-air block is the visible surface.
+                for (int y = topY - 1; y >= bottomY; y--) {
+                    pos.set(x, y, z);
                     BlockState state = world.getBlockState(pos);
-                    int stateId = Block.STATE_IDS.getRawId(state);
-                    Integer idx = paletteMap.get(stateId);
-                    if (idx == null) {
-                        idx = palette.size();
-                        paletteMap.put(stateId, idx);
-                        palette.add(stateId);
+                    if (state.isAir()) {
+                        continue;
                     }
-                    data[i++] = idx;
+                    foundY = y;
+                    foundState = Block.STATE_IDS.getRawId(state);
+                    break;
                 }
+                int idx = ChunkColumn.index(lx, lz);
+                heights[idx] = foundY;
+                states[idx] = foundState;
             }
         }
-
-        int[] paletteArr = new int[palette.size()];
-        for (int p = 0; p < palette.size(); p++) {
-            paletteArr[p] = palette.get(p);
-        }
-        return new ChunkColumn(originX, originZ, bottomY, height, paletteArr, data);
+        return new ChunkColumn(originX, originZ, bottomY, heights, states);
     }
 }

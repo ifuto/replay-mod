@@ -1,11 +1,10 @@
 package dev.ifuto.fpsreplay.replay;
 
 /**
- * A recorded 16x16 block-column (one chunk column) of terrain.
- *
- * <p>Stores every block state in the column as palette indices so the replay
- * can rebuild the world independently of the live client world. Air is always
- * palette index 0.</p>
+ * A recorded 16x16 surface slice of terrain — only the topmost visible block
+ * per (x, z) column, plus its height. This is what the camera actually sees,
+ * so it reproduces the visible world while costing ~400x less than a full
+ * 3D chunk column (256 blocks instead of ~100k).
  */
 public final class ChunkColumn {
     /** Block X of the column origin (chunkX * 16). */
@@ -13,19 +12,17 @@ public final class ChunkColumn {
     /** Block Z of the column origin (chunkZ * 16). */
     public final int originZ;
     public final int bottomY;
-    public final int height;
-    /** Block state registry ids, palette[0] = air. */
-    public final int[] palette;
-    /** Palette index per block, length = 16 * 16 * height, y/x/z order. */
-    public final int[] data;
+    /** 256 top-solid-block Y per (x, z); {@code bottomY - 1} if empty. */
+    public final int[] heights;
+    /** 256 raw block-state registry ids at the surface. */
+    public final int[] states;
 
-    public ChunkColumn(int originX, int originZ, int bottomY, int height, int[] palette, int[] data) {
+    public ChunkColumn(int originX, int originZ, int bottomY, int[] heights, int[] states) {
         this.originX = originX;
         this.originZ = originZ;
         this.bottomY = bottomY;
-        this.height = height;
-        this.palette = palette;
-        this.data = data;
+        this.heights = heights;
+        this.states = states;
     }
 
     public static long key(int originX, int originZ) {
@@ -36,10 +33,8 @@ public final class ChunkColumn {
         return key(originX, originZ);
     }
 
-    public int blockIndex(int x, int y, int z) {
-        int lx = x - originX;
-        int lz = z - originZ;
-        int ly = y - bottomY;
-        return (ly * 16 + lz) * 16 + lx;
+    /** Index into heights/states for a local (x, z) within the 16x16 column. */
+    public static int index(int lx, int lz) {
+        return lz * 16 + lx;
     }
 }

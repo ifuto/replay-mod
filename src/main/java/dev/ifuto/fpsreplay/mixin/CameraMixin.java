@@ -14,8 +14,8 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 /**
  * Hooks {@link Camera#update} to (a) capture the exact rendered camera while
  * recording, and (b) force the camera to the interpolated replay pose while
- * rendering. This is what makes the viewpoint reproduction pixel-exact,
- * including view bobbing and roll.
+ * rendering. Roll is not applied (it caused the camera to flip upside-down);
+ * position + yaw/pitch reproduce the viewpoint exactly.
  */
 @Mixin(Camera.class)
 public abstract class CameraMixin {
@@ -30,10 +30,6 @@ public abstract class CameraMixin {
             if (pose != null) {
                 invokeSetPos(pose[0], pose[1], pose[2]);
                 invokeSetRotation(pose[3], pose[4]);
-                float roll = pose[5];
-                if (roll != 0.0f) {
-                    self.getRotation().rotateZ((float) Math.toRadians(roll));
-                }
             }
         } else if (Recorder.isRecording()) {
             CameraCapture.capture(self);
