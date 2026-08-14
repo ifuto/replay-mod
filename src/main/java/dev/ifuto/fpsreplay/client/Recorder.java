@@ -40,6 +40,7 @@ public final class Recorder implements AutoCloseable {
     private long lastKeyTick = Long.MIN_VALUE;
     private CameraFrame lastKey;
     private final List<EntityFrame> entityScratch = new ArrayList<>(128);
+    private final TerrainRecorder terrainRecorder = new TerrainRecorder();
 
     private Recorder(ReplayWriter writer, File file) {
         this.writer = writer;
@@ -75,6 +76,10 @@ public final class Recorder implements AutoCloseable {
             ReplayWriter writer = ReplayFile.create(file, meta, ReplayConfig.compressionLevel);
             instance = new Recorder(writer, file);
             CameraCapture.reset();
+            instance.terrainRecorder.reset();
+            // Immediately snapshot the terrain around the player so the replay
+            // is self-contained even if the player never moves.
+            instance.terrainRecorder.tick(client, writer, ReplayConfig.terrainChunkRadius);
             FlashReplayClient.LOGGER.info("[Flash Replay] Recording started -> {}", file);
             return file;
         } catch (IOException e) {
@@ -159,10 +164,12 @@ public final class Recorder implements AutoCloseable {
 
         try {
             if (lastKeyTick == Long.MIN_VALUE || tick - lastKeyTick >= ReplayConfig.keyframeInterval) {
-                // Keyframe: capture HUD/entities and anchor the delta encoding.
+                // Keyframe: capture HUD/entities, anchor the delta encoding,
+                // and snapshot any newly-seen terrain columns.
                 lastKey = new CameraFrame(tick, x, y, z, yaw, pitch, roll, fov, handSwing);
                 sampleEntities(world, player);
                 writer.writeKeyframe(tick, lastKey, HudCapture.capture(client), entityScratch);
+                terrainRecorder.tick(client, writer, ReplayConfig.terrainChunkRadius);
                 lastKeyTick = tick;
             } else {
                 writer.writeTick(

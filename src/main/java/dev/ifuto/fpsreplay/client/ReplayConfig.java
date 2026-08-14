@@ -23,6 +23,8 @@ public final class ReplayConfig {
     public static int entityRange = 64;
     /** Whether to also record block changes ("packets") for world fidelity. */
     public static boolean recordBlockChanges = true;
+    /** Radius (in chunks) of terrain columns recorded around the player. */
+    public static int terrainChunkRadius = 6;
 
     // --- Rendering (upscale at output time) ---
     /** Default output width when not specified on the command line (4K). */
@@ -63,6 +65,7 @@ public final class ReplayConfig {
         keyframeInterval = intProp(props, "keyframeInterval", keyframeInterval);
         entityRange = intProp(props, "entityRange", entityRange);
         recordBlockChanges = boolProp(props, "recordBlockChanges", recordBlockChanges);
+        terrainChunkRadius = intProp(props, "terrainChunkRadius", terrainChunkRadius);
         renderWidth = intProp(props, "renderWidth", renderWidth);
         renderHeight = intProp(props, "renderHeight", renderHeight);
         renderFps = intProp(props, "renderFps", renderFps);
@@ -78,6 +81,7 @@ public final class ReplayConfig {
         props.setProperty("keyframeInterval", String.valueOf(keyframeInterval));
         props.setProperty("entityRange", String.valueOf(entityRange));
         props.setProperty("recordBlockChanges", String.valueOf(recordBlockChanges));
+        props.setProperty("terrainChunkRadius", String.valueOf(terrainChunkRadius));
         props.setProperty("renderWidth", String.valueOf(renderWidth));
         props.setProperty("renderHeight", String.valueOf(renderHeight));
         props.setProperty("renderFps", String.valueOf(renderFps));

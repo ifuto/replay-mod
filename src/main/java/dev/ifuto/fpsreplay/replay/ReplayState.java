@@ -23,6 +23,8 @@ public final class ReplayState {
     public final List<BlockChange> blockChanges = new ArrayList<>();
     /** HUD snapshots keyed by the tick they were captured at. */
     public final Map<Long, HudState> hudStates = new HashMap<>();
+    /** Recorded terrain chunk columns, keyed by {@code ChunkColumn.key}. */
+    public final Map<Long, ChunkColumn> chunkColumns = new HashMap<>();
 
     public ReplayState(ReplayMetadata metadata) {
         this.metadata = metadata;

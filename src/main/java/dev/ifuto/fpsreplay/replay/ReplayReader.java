@@ -90,6 +90,23 @@ public final class ReplayReader implements AutoCloseable {
                     int stateId = IoUtil.readVarInt(body);
                     state.blockChanges.add(new BlockChange(tick, x, y, z, stateId));
                 }
+                case CHUNK -> {
+                    int originX = body.readInt();
+                    int originZ = body.readInt();
+                    int bottomY = body.readInt();
+                    int height = IoUtil.readVarInt(body);
+                    int paletteSize = IoUtil.readVarInt(body);
+                    int[] palette = new int[paletteSize];
+                    for (int i = 0; i < paletteSize; i++) {
+                        palette[i] = IoUtil.readVarInt(body);
+                    }
+                    int[] data = new int[16 * 16 * height];
+                    for (int i = 0; i < data.length; i++) {
+                        data[i] = IoUtil.readVarInt(body);
+                    }
+                    state.chunkColumns.put(ChunkColumn.key(originX, originZ),
+                            new ChunkColumn(originX, originZ, bottomY, height, palette, data));
+                }
                 case END -> {
                     return state;
                 }

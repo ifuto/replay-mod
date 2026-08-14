@@ -23,6 +23,13 @@ public enum RecordType {
     /** A single block change at an absolute position. Written on demand. */
     BLOCK_CHANGE((byte) 3),
 
+    /**
+     * A full 16x16 block-column of terrain (one chunk column, all heights).
+     * Written when a new column is first observed near the player, so the
+     * replay can reconstruct the world without needing the live world.
+     */
+    CHUNK((byte) 4),
+
     /** Terminator marking a clean end of stream. */
     END((byte) 0x7F);
 
