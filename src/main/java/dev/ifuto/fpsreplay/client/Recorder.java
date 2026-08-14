@@ -164,11 +164,11 @@ public final class Recorder implements AutoCloseable {
 
         try {
             if (lastKeyTick == Long.MIN_VALUE || tick - lastKeyTick >= ReplayConfig.keyframeInterval) {
-                // Keyframe: capture HUD/entities, anchor the delta encoding,
-                // and snapshot any newly-seen terrain columns.
+                // Keyframe: capture HUD, anchor the delta encoding, and
+                // snapshot any newly-seen terrain columns. Written first so the
+                // tick delta is anchored to an absolute tick on the first record.
                 lastKey = new CameraFrame(tick, x, y, z, yaw, pitch, roll, fov, handSwing);
-                sampleEntities(world, player);
-                writer.writeKeyframe(tick, lastKey, HudCapture.capture(client), entityScratch);
+                writer.writeKeyframe(tick, lastKey, HudCapture.capture(client));
                 terrainRecorder.tick(client, writer, ReplayConfig.terrainChunkRadius);
                 lastKeyTick = tick;
             } else {
@@ -178,6 +178,11 @@ public final class Recorder implements AutoCloseable {
                         yaw - lastKey.yaw, pitch - lastKey.pitch, roll - lastKey.roll,
                         fov - lastKey.fov, handSwing);
             }
+
+            // Entities are captured every tick so render-time interpolation can
+            // reproduce motion finer than the server even sends over packets.
+            sampleEntities(world, player);
+            writer.writeEntities(tick, entityScratch);
         } catch (IOException e) {
             FlashReplayClient.LOGGER.error("[Flash Replay] Recording write failed", e);
             stop();

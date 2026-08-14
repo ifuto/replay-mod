@@ -30,6 +30,13 @@ public enum RecordType {
      */
     CHUNK((byte) 4),
 
+    /**
+     * A per-tick entity snapshot. Written every tick so that fine, sub-tick
+     * motion (smoother than what the server even sends) can be reproduced by
+     * interpolation at render time.
+     */
+    ENTITY((byte) 5),
+
     /** Terminator marking a clean end of stream. */
     END((byte) 0x7F);
 

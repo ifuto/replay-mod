@@ -3,7 +3,6 @@ package dev.ifuto.fpsreplay.replay;
 import java.io.DataInputStream;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.List;
 import java.util.zip.GZIPInputStream;
 
 /**
@@ -47,16 +46,8 @@ public final class ReplayReader implements AutoCloseable {
                             body.readFloat(), body.readFloat(), body.readFloat(),
                             body.readFloat(), body.readFloat());
                     HudState hud = HudState.read(body);
-                    int count = body.readInt();
-                    List<EntityFrame> entities = new ArrayList<>(count);
-                    for (int i = 0; i < count; i++) {
-                        entities.add(readEntity());
-                    }
                     state.cameraFrames.add(cam);
                     state.hudStates.put(tick, hud);
-                    for (EntityFrame e : entities) {
-                        state.entityTracks.computeIfAbsent(e.entityId, k -> new ArrayList<>()).add(e);
-                    }
                     lastKey = cam;
                     lastTick = tick;
                 }
@@ -107,6 +98,15 @@ public final class ReplayReader implements AutoCloseable {
                     state.chunkColumns.put(ChunkColumn.key(originX, originZ),
                             new ChunkColumn(originX, originZ, bottomY, height, palette, data));
                 }
+                case ENTITY -> {
+                    long tick = lastTick + IoUtil.readVarIntZigZag(body);
+                    int count = body.readInt();
+                    for (int i = 0; i < count; i++) {
+                        EntityFrame e = readEntity(tick);
+                        state.entityTracks.computeIfAbsent(e.entityId, k -> new ArrayList<>()).add(e);
+                    }
+                    lastTick = tick;
+                }
                 case END -> {
                     return state;
                 }
@@ -114,9 +114,8 @@ public final class ReplayReader implements AutoCloseable {
         }
     }
 
-    private EntityFrame readEntity() throws IOException {
+    private EntityFrame readEntity(long tick) throws IOException {
         int entityId = IoUtil.readVarInt(body);
-        long tick = IoUtil.readVarInt(body);
         int typeId = IoUtil.readVarInt(body);
         double x = body.readDouble();
         double y = body.readDouble();

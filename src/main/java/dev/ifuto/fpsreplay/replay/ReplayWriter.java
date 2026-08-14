@@ -41,9 +41,11 @@ public final class ReplayWriter implements AutoCloseable {
     }
 
     /**
-     * Write a full-precision keyframe with entity + HUD snapshots.
+     * Write a full-precision camera keyframe + HUD snapshot. Entities are
+     * written separately via {@link #writeEntities} (every tick), so the
+     * keyframe stays small and the camera anchor is independent of entities.
      */
-    public void writeKeyframe(long tick, CameraFrame cam, HudState hud, List<EntityFrame> entities) throws IOException {
+    public void writeKeyframe(long tick, CameraFrame cam, HudState hud) throws IOException {
         out.writeByte(RecordType.KEYFRAME.id());
         IoUtil.writeVarInt(out, (int) tick);
         out.writeDouble(cam.x);
@@ -57,11 +59,20 @@ public final class ReplayWriter implements AutoCloseable {
 
         // HUD state snapshot (vitals / effects / scoreboard / player list).
         hud.write(out);
+        lastTick = tick;
+    }
 
-        // Entity snapshot.
+    /**
+     * Write a per-tick entity snapshot. All entities are written at full
+     * precision (compressed by gzip + varints) so render-time interpolation
+     * can reproduce smooth, sub-tick motion.
+     */
+    public void writeEntities(long tick, List<EntityFrame> entities) throws IOException {
+        out.writeByte(RecordType.ENTITY.id());
+        IoUtil.writeVarInt(out, (int) (tick - lastTick));
         out.writeInt(entities.size());
         for (EntityFrame e : entities) {
-            writeEntity(e, tick);
+            writeEntity(e);
         }
         lastTick = tick;
     }
@@ -128,9 +139,8 @@ public final class ReplayWriter implements AutoCloseable {
         out.close();
     }
 
-    private void writeEntity(EntityFrame e, long tick) throws IOException {
+    private void writeEntity(EntityFrame e) throws IOException {
         IoUtil.writeVarInt(out, e.entityId);
-        IoUtil.writeVarInt(out, (int) tick);
         IoUtil.writeVarInt(out, e.typeId);
         out.writeDouble(e.x);
         out.writeDouble(e.y);

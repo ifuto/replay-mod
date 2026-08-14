@@ -151,23 +151,28 @@ public final class ReplayEntityManager {
         }
     }
 
-    /** Find the bracketing keyframes for {@code tick} and interpolate. */
+    /** Find the bracketing samples for {@code tick} (binary search) and interpolate. */
     private EntityFrame interpolate(List<EntityFrame> track, double tick) {
         if (track.size() == 1) {
             return track.get(0);
         }
-        // Tracks are ascending by tick (one sample per keyframe).
-        EntityFrame a = track.get(0);
-        EntityFrame b = track.get(track.size() - 1);
-        for (int i = 0; i < track.size() - 1; i++) {
-            EntityFrame f0 = track.get(i);
-            EntityFrame f1 = track.get(i + 1);
-            if (tick <= f1.tick) {
-                a = f0;
-                b = f1;
-                break;
+        // Tracks are ascending by tick (one sample per recorded tick).
+        int lo = 0;
+        int hi = track.size() - 1;
+        while (lo < hi) {
+            int mid = (lo + hi + 1) >>> 1;
+            if (track.get(mid).tick <= tick) {
+                lo = mid;
+            } else {
+                hi = mid - 1;
             }
         }
+        int i = lo;
+        if (i >= track.size() - 1) {
+            return track.get(track.size() - 1);
+        }
+        EntityFrame a = track.get(i);
+        EntityFrame b = track.get(i + 1);
         if (a.tick >= b.tick) {
             return b;
         }
