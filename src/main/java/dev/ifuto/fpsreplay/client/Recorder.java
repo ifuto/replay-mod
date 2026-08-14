@@ -179,10 +179,14 @@ public final class Recorder implements AutoCloseable {
                         fov - lastKey.fov, handSwing);
             }
 
-            // Entities are captured every tick so render-time interpolation can
-            // reproduce motion finer than the server even sends over packets.
-            sampleEntities(world, player);
-            writer.writeEntities(tick, entityScratch);
+            // Entities are captured at the configured interval (default every
+            // tick) so render-time interpolation can reproduce motion finer
+            // than the server even sends over packets.
+            int interval = Math.max(1, ReplayConfig.entityRecordInterval);
+            if (tick % interval == 0) {
+                sampleEntities(world, player);
+                writer.writeEntities(tick, entityScratch);
+            }
         } catch (IOException e) {
             FlashReplayClient.LOGGER.error("[Flash Replay] Recording write failed", e);
             stop();

@@ -15,8 +15,8 @@ import java.util.Properties;
  */
 public final class ReplayConfig {
     // --- Recording (lightweight) ---
-    /** gzip level 0-9; higher = smaller files, slightly more CPU. */
-    public static int compressionLevel = 6;
+    /** gzip level 0-9; higher = smaller files, much more CPU. 1 = fast. */
+    public static int compressionLevel = 1;
     /** Ticks between keyframes. Lower = finer entity snapshots, larger files. */
     public static int keyframeInterval = 20;
     /** Radius (blocks) around the player in which entities are recorded. */
@@ -25,6 +25,8 @@ public final class ReplayConfig {
     public static boolean recordBlockChanges = true;
     /** Radius (in chunks) of terrain columns recorded around the player. */
     public static int terrainChunkRadius = 6;
+    /** Record entities every N ticks (1 = every tick, smoothest; 2-3 = cheaper). */
+    public static int entityRecordInterval = 1;
 
     // --- Rendering (upscale at output time) ---
     /** Default output width when not specified on the command line (4K). */
@@ -66,6 +68,7 @@ public final class ReplayConfig {
         entityRange = intProp(props, "entityRange", entityRange);
         recordBlockChanges = boolProp(props, "recordBlockChanges", recordBlockChanges);
         terrainChunkRadius = intProp(props, "terrainChunkRadius", terrainChunkRadius);
+        entityRecordInterval = intProp(props, "entityRecordInterval", entityRecordInterval);
         renderWidth = intProp(props, "renderWidth", renderWidth);
         renderHeight = intProp(props, "renderHeight", renderHeight);
         renderFps = intProp(props, "renderFps", renderFps);
@@ -82,6 +85,7 @@ public final class ReplayConfig {
         props.setProperty("entityRange", String.valueOf(entityRange));
         props.setProperty("recordBlockChanges", String.valueOf(recordBlockChanges));
         props.setProperty("terrainChunkRadius", String.valueOf(terrainChunkRadius));
+        props.setProperty("entityRecordInterval", String.valueOf(entityRecordInterval));
         props.setProperty("renderWidth", String.valueOf(renderWidth));
         props.setProperty("renderHeight", String.valueOf(renderHeight));
         props.setProperty("renderFps", String.valueOf(renderFps));

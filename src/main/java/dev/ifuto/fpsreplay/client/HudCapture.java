@@ -19,12 +19,23 @@ import net.minecraft.scoreboard.ScoreboardObjective;
 import net.minecraft.scoreboard.Team;
 import net.minecraft.util.Formatting;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * Builds a {@link HudState} snapshot from the live client. Captures player
  * vitals, status effects, the scoreboard, the hotbar/inventory, and the tab
  * player list so the replay can reproduce the full HUD.
  */
 public final class HudCapture {
+    // Inventory encoding cache: the expensive SNBT serialization of every
+    // slot only runs when the inventory actually changed (fingerprint).
+    private static long lastInvFingerprint = Long.MIN_VALUE;
+    private static final List<String> cachedMain = new ArrayList<>(36);
+    private static final List<String> cachedArmor = new ArrayList<>(4);
+    private static String cachedOffHand = "";
+    private static int cachedSelectedSlot = -1;
+
     private HudCapture() {
     }
 
@@ -51,18 +62,39 @@ public final class HudCapture {
         h.score = player.getScore();
         h.playerListVisible = client.options.playerListKey.isPressed();
 
-        // --- Hotbar / inventory ---
+        // --- Hotbar / inventory (cached; re-encoded only on change) ---
         PlayerInventory inv = player.getInventory();
-        h.selectedSlot = inv.getSelectedSlot();
-        for (ItemStack stack : inv.getMainStacks()) {
-            h.mainInventory.add(encodeItem(stack, world));
+        long fp = fingerprint(inv, player);
+        if (fp == lastInvFingerprint) {
+            h.selectedSlot = cachedSelectedSlot;
+            h.mainInventory.addAll(cachedMain);
+            h.armorSlots.addAll(cachedArmor);
+            h.offHand = cachedOffHand;
+        } else {
+            lastInvFingerprint = fp;
+            cachedSelectedSlot = inv.getSelectedSlot();
+            h.selectedSlot = cachedSelectedSlot;
+            cachedMain.clear();
+            for (ItemStack stack : inv.getMainStacks()) {
+                String s = encodeItem(stack, world);
+                cachedMain.add(s);
+                h.mainInventory.add(s);
+            }
+            cachedArmor.clear();
+            // armor: feet, legs, chest, head
+            String[] armor = {
+                    encodeItem(player.getEquippedStack(EquipmentSlot.FEET), world),
+                    encodeItem(player.getEquippedStack(EquipmentSlot.LEGS), world),
+                    encodeItem(player.getEquippedStack(EquipmentSlot.CHEST), world),
+                    encodeItem(player.getEquippedStack(EquipmentSlot.HEAD), world),
+            };
+            for (String s : armor) {
+                cachedArmor.add(s);
+                h.armorSlots.add(s);
+            }
+            cachedOffHand = encodeItem(player.getEquippedStack(EquipmentSlot.OFFHAND), world);
+            h.offHand = cachedOffHand;
         }
-        // armor: feet, legs, chest, head
-        h.armorSlots.add(encodeItem(player.getEquippedStack(EquipmentSlot.FEET), world));
-        h.armorSlots.add(encodeItem(player.getEquippedStack(EquipmentSlot.LEGS), world));
-        h.armorSlots.add(encodeItem(player.getEquippedStack(EquipmentSlot.CHEST), world));
-        h.armorSlots.add(encodeItem(player.getEquippedStack(EquipmentSlot.HEAD), world));
-        h.offHand = encodeItem(player.getEquippedStack(EquipmentSlot.OFFHAND), world);
 
         // --- Status effects ---
         for (StatusEffectInstance inst : player.getStatusEffects()) {
@@ -115,6 +147,34 @@ public final class HudCapture {
         }
 
         return h;
+    }
+
+    /** Cheap fingerprint of the inventory contents (selected slot + item ids + counts). */
+    private static long fingerprint(PlayerInventory inv, ClientPlayerEntity player) {
+        long h = 0x811c9dc5L;
+        h = h * 31 + inv.getSelectedSlot();
+        for (ItemStack s : inv.getMainStacks()) {
+            h = h * 31 + stackId(s);
+            h = h * 31 + s.getCount();
+        }
+        for (EquipmentSlot slot : new EquipmentSlot[]{EquipmentSlot.FEET, EquipmentSlot.LEGS,
+                EquipmentSlot.CHEST, EquipmentSlot.HEAD, EquipmentSlot.OFFHAND}) {
+            ItemStack s = player.getEquippedStack(slot);
+            h = h * 31 + stackId(s);
+            h = h * 31 + s.getCount();
+        }
+        return h;
+    }
+
+    private static int stackId(ItemStack s) {
+        if (s == null || s.isEmpty()) {
+            return 0;
+        }
+        try {
+            return Registries.ITEM.getRawId(s.getRegistryEntry().value());
+        } catch (Throwable t) {
+            return -1; // forces re-encode on next change, safe direction
+        }
     }
 
     /** Serialize an item stack to SNBT (empty string for empty slots). */
