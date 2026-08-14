@@ -14,6 +14,7 @@
   "gui.flash-replay.start_export": "Start Export",
   "gui.flash-replay.cancel": "Cancel",
   "gui.flash-replay.exporting": "Exporting... please wait",
+  "gui.flash-replay.need_world": "Preview/export requires being inside a world",
   "gui.flash-replay.preview_hint": "Preview: Space=play/pause  ←/→=seek  Esc=exit",
   "gui.flash-replay.export_hint": "Export: /replay render <name> <WxH> <fps> [mp4|png]"
 }

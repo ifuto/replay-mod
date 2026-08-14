@@ -121,6 +121,12 @@ public final class Renderer {
     private static void start(MinecraftClient client, File file, Mode mode, Format format,
                               int width, int height, int fps) {
         stop(client);
+        // Rendering drives the live client world; without a world the very
+        // first frame would stop immediately (0 frames).
+        if (client.world == null || client.player == null) {
+            FlashReplayClient.LOGGER.warn("[Flash Replay] Cannot start render: not in a world.");
+            return;
+        }
         try {
             ReplayState state;
             try (ReplayReader reader = ReplayFile.open(file)) {

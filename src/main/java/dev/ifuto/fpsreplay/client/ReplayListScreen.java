@@ -16,13 +16,19 @@ import java.util.List;
  * A screen listing saved replays. Each row has a "プレビュー" (preview) and
  * "出力" (export) button — so playback and rendering can be driven entirely
  * from the GUI, no commands required.
+ *
+ * <p>Preview/export render into the live client world, so they require being
+ * inside a world. When opened from the title screen (no world loaded), the
+ * row buttons are disabled and a hint is shown.</p>
  */
 public final class ReplayListScreen extends Screen {
     private final Screen parent;
+    private final boolean inWorld;
 
     public ReplayListScreen(Screen parent) {
         super(Text.translatable("gui.flash-replay.replay_list"));
         this.parent = parent;
+        this.inWorld = MinecraftClient.getInstance().world != null;
     }
 
     @Override
@@ -37,12 +43,11 @@ public final class ReplayListScreen extends Screen {
         }
         sorted.sort(Comparator.comparingLong(File::lastModified).reversed());
 
-        int y = 34;
+        int y = 40;
         int rowWidth = 300;
         int left = width / 2 - rowWidth / 2;
         for (File f : sorted) {
-            String label = f.getName();
-            addDrawableChild(ButtonWidget.builder(Text.literal(label), b -> preview(f))
+            addDrawableChild(ButtonWidget.builder(Text.literal(f.getName()), b -> preview(f))
                     .dimensions(left, y, rowWidth - 118, 20)
                     .build());
             addDrawableChild(ButtonWidget.builder(Text.translatable("gui.flash-replay.preview"), b -> preview(f))
@@ -60,6 +65,9 @@ public final class ReplayListScreen extends Screen {
     }
 
     private void preview(File f) {
+        if (!inWorld) {
+            return;
+        }
         MinecraftClient client = MinecraftClient.getInstance();
         client.setScreen(null);
         Renderer.preview(client, f);
@@ -69,6 +77,9 @@ public final class ReplayListScreen extends Screen {
     }
 
     private void export(File f) {
+        if (!inWorld) {
+            return;
+        }
         MinecraftClient.getInstance().setScreen(new ExportScreen(this, f));
     }
 
@@ -79,10 +90,13 @@ public final class ReplayListScreen extends Screen {
 
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-        // Note: in 1.21.6+ Screen.render() renders the (blurred) background
-        // automatically; calling renderBackground() again throws
-        // "Can only blur once per frame".
+        // 1.21.6+: background is rendered by super.render(); do not call
+        // renderBackground() here (would double-blur and crash).
         context.drawCenteredTextWithShadow(textRenderer, title, width / 2, 14, 0xFFFFFF);
+        if (!inWorld) {
+            context.drawCenteredTextWithShadow(textRenderer,
+                    Text.translatable("gui.flash-replay.need_world"), width / 2, 28, 0xFF5555);
+        }
         super.render(context, mouseX, mouseY, delta);
     }
 }

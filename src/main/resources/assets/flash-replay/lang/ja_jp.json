@@ -14,6 +14,7 @@
   "gui.flash-replay.start_export": "出力開始",
   "gui.flash-replay.cancel": "キャンセル",
   "gui.flash-replay.exporting": "出力中… 終了までお待ちください",
+  "gui.flash-replay.need_world": "プレビュー/出力にはワールドに入っている必要があります",
   "gui.flash-replay.preview_hint": "プレビュー: Space=再生/一時停止  ←/→=シーク  Esc=終了",
   "gui.flash-replay.export_hint": "エクスポート: /replay render <name> <WxH> <fps> [mp4|png]"
 }

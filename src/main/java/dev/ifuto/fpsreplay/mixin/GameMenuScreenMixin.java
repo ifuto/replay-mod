@@ -1,6 +1,7 @@
 package dev.ifuto.fpsreplay.mixin;
 
 import dev.ifuto.fpsreplay.client.Recorder;
+import dev.ifuto.fpsreplay.client.ReplayListScreen;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.screen.GameMenuScreen;
 import net.minecraft.client.gui.screen.Screen;
@@ -15,7 +16,8 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
 /**
- * Adds a "録画開始 / 録画停止" toggle button to the pause (game menu) screen.
+ * Adds a "録画開始 / 録画停止" toggle button and a "リプレイ一覧" button to
+ * the pause (game menu) screen.
  */
 @Mixin(GameMenuScreen.class)
 public abstract class GameMenuScreenMixin extends Screen {
@@ -32,6 +34,13 @@ public abstract class GameMenuScreenMixin extends Screen {
                 .dimensions(10, 10, 130, 20)
                 .build();
         this.addDrawableChild(recordButton);
+
+        ButtonWidget listButton = ButtonWidget.builder(
+                        Text.translatable("gui.flash-replay.replay_list"),
+                        b -> MinecraftClient.getInstance().setScreen(new ReplayListScreen(this)))
+                .dimensions(10, 34, 130, 20)
+                .build();
+        this.addDrawableChild(listButton);
     }
 
     private static Text recordLabel() {
