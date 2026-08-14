@@ -26,9 +26,9 @@ import java.util.List;
  */
 public final class ReplayWriter implements AutoCloseable {
     /** Position delta scale: stored varint = world * 4096. */
-    static final double POS_SCALE = 4096.0;
+    public static final double POS_SCALE = 4096.0;
     /** Rotation/fov delta scale: stored varint = degrees * 100. */
-    static final double ROT_SCALE = 100.0;
+    public static final double ROT_SCALE = 100.0;
     /** Hand-swing scale: stored varint = swing * 1000. */
     static final double HAND_SCALE = 1000.0;
 
@@ -63,16 +63,29 @@ public final class ReplayWriter implements AutoCloseable {
     }
 
     /**
-     * Write a per-tick entity snapshot. All entities are written at full
-     * precision (compressed by gzip + varints) so render-time interpolation
-     * can reproduce smooth, sub-tick motion.
+     * Write a per-tick entity update. Newly-seen (or periodically refreshed)
+     * entities are written at full precision; entities that moved since their
+     * last sample are written as quantized deltas. Static entities are simply
+     * omitted (all-zero delta) so they cost nothing.
      */
-    public void writeEntities(long tick, List<EntityFrame> entities) throws IOException {
+    public void writeEntities(long tick, List<EntityFrame> newEntities, List<EntityDelta> deltas) throws IOException {
         out.writeByte(RecordType.ENTITY.id());
-        IoUtil.writeVarInt(out, (int) (tick - lastTick));
-        out.writeInt(entities.size());
-        for (EntityFrame e : entities) {
+        IoUtil.writeVarIntZigZag(out, (int) (tick - lastTick));
+
+        out.writeInt(newEntities.size());
+        for (EntityFrame e : newEntities) {
             writeEntity(e);
+        }
+
+        out.writeInt(deltas.size());
+        for (EntityDelta d : deltas) {
+            IoUtil.writeVarInt(out, d.entityId);
+            IoUtil.writeVarIntZigZag(out, d.dx);
+            IoUtil.writeVarIntZigZag(out, d.dy);
+            IoUtil.writeVarIntZigZag(out, d.dz);
+            IoUtil.writeVarIntZigZag(out, d.dyaw);
+            IoUtil.writeVarIntZigZag(out, d.dpitch);
+            IoUtil.writeVarIntZigZag(out, d.dheadYaw);
         }
         lastTick = tick;
     }

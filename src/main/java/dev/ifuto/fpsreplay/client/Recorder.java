@@ -2,6 +2,7 @@ package dev.ifuto.fpsreplay.client;
 
 import dev.ifuto.fpsreplay.replay.BlockChange;
 import dev.ifuto.fpsreplay.replay.CameraFrame;
+import dev.ifuto.fpsreplay.replay.EntityDelta;
 import dev.ifuto.fpsreplay.replay.EntityFrame;
 import dev.ifuto.fpsreplay.replay.ReplayFile;
 import dev.ifuto.fpsreplay.replay.ReplayMetadata;
@@ -21,7 +22,9 @@ import net.minecraft.util.math.BlockPos;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * The recorder — the "死ぬほど軽量化" core.
@@ -39,7 +42,10 @@ public final class Recorder implements AutoCloseable {
     private final File file;
     private long lastKeyTick = Long.MIN_VALUE;
     private CameraFrame lastKey;
-    private final List<EntityFrame> entityScratch = new ArrayList<>(128);
+    private final List<EntityFrame> newEntityScratch = new ArrayList<>(32);
+    private final List<EntityDelta> deltaScratch = new ArrayList<>(128);
+    private final Map<Integer, EntityFrame> lastEntity = new HashMap<>();
+    private final Map<Integer, Long> lastEntityFullTick = new HashMap<>();
     private final TerrainRecorder terrainRecorder = new TerrainRecorder();
 
     private Recorder(ReplayWriter writer, File file) {
@@ -77,9 +83,9 @@ public final class Recorder implements AutoCloseable {
             instance = new Recorder(writer, file);
             CameraCapture.reset();
             instance.terrainRecorder.reset();
-            // Immediately snapshot the terrain around the player so the replay
-            // is self-contained even if the player never moves.
-            instance.terrainRecorder.tick(client, writer, ReplayConfig.terrainChunkRadius);
+            // Queue the terrain around the player; it drains over subsequent
+            // ticks (a few columns per tick) to avoid an FPS spike.
+            instance.terrainRecorder.enqueueRadius(client, ReplayConfig.terrainChunkRadius);
             FlashReplayClient.LOGGER.info("[Flash Replay] Recording started -> {}", file);
             return file;
         } catch (IOException e) {
@@ -169,7 +175,7 @@ public final class Recorder implements AutoCloseable {
                 // tick delta is anchored to an absolute tick on the first record.
                 lastKey = new CameraFrame(tick, x, y, z, yaw, pitch, roll, fov, handSwing);
                 writer.writeKeyframe(tick, lastKey, HudCapture.capture(client));
-                terrainRecorder.tick(client, writer, ReplayConfig.terrainChunkRadius);
+                terrainRecorder.enqueueRadius(client, ReplayConfig.terrainChunkRadius);
                 lastKeyTick = tick;
             } else {
                 writer.writeTick(
@@ -179,13 +185,15 @@ public final class Recorder implements AutoCloseable {
                         fov - lastKey.fov, handSwing);
             }
 
-            // Entities are captured at the configured interval (default every
-            // tick) so render-time interpolation can reproduce motion finer
-            // than the server even sends over packets.
+            // Drain terrain snapshot queue a few columns per tick (no spikes).
+            terrainRecorder.drain(client, writer);
+
+            // Entities: new/refreshed entities are written at full precision;
+            // moved entities as quantized deltas; static entities are skipped.
             int interval = Math.max(1, ReplayConfig.entityRecordInterval);
             if (tick % interval == 0) {
                 sampleEntities(world, player);
-                writer.writeEntities(tick, entityScratch);
+                writer.writeEntities(tick, newEntityScratch, deltaScratch);
             }
         } catch (IOException e) {
             FlashReplayClient.LOGGER.error("[Flash Replay] Recording write failed", e);
@@ -194,8 +202,12 @@ public final class Recorder implements AutoCloseable {
     }
 
     private void sampleEntities(ClientWorld world, ClientPlayerEntity self) {
-        entityScratch.clear();
+        newEntityScratch.clear();
+        deltaScratch.clear();
+        long tick = world.getTime();
         double rangeSq = (double) ReplayConfig.entityRange * ReplayConfig.entityRange;
+        long refreshInterval = Math.max(1, ReplayConfig.keyframeInterval);
+
         for (Entity entity : world.getEntities()) {
             if (entity == self) {
                 continue;
@@ -203,35 +215,77 @@ public final class Recorder implements AutoCloseable {
             if (entity.squaredDistanceTo(self) > rangeSq) {
                 continue;
             }
-            int typeId = Registries.ENTITY_TYPE.getRawId(entity.getType());
-            float headYaw = entity.getYaw();
-            float health = -1.0f;
-            float maxHealth = -1.0f;
-            if (entity instanceof LivingEntity living) {
-                headYaw = living.getHeadYaw();
-                health = living.getHealth();
-                maxHealth = living.getMaxHealth();
+            EntityFrame cur = toFrame(entity, tick);
+            EntityFrame prev = lastEntity.get(entity.getId());
+            Long prevFullTick = lastEntityFullTick.get(entity.getId());
+
+            if (prev == null || prevFullTick == null || tick - prevFullTick >= refreshInterval) {
+                // New entity, or periodic refresh (keeps health/name in sync).
+                newEntityScratch.add(cur);
+                lastEntity.put(entity.getId(), cur);
+                lastEntityFullTick.put(entity.getId(), tick);
+            } else {
+                EntityDelta delta = deltaBetween(prev, cur);
+                if (delta.isZero()) {
+                    // Static: skip entirely (costs nothing).
+                    continue;
+                }
+                deltaScratch.add(delta);
+                lastEntity.put(entity.getId(), cur);
             }
-            int flags = 0;
-            if (entity.isGlowing()) {
-                flags |= EntityFrame.FLAG_GLOWING;
-            }
-            if (entity.isSneaking()) {
-                flags |= EntityFrame.FLAG_SNEAKING;
-            }
-            if (entity.isSprinting()) {
-                flags |= EntityFrame.FLAG_SPRINTING;
-            }
-            String customName = null;
-            if (entity.hasCustomName()) {
-                customName = Texts.toJson(entity.getCustomName());
-            }
-            entityScratch.add(new EntityFrame(
-                    entity.getId(), world.getTime(), typeId,
-                    entity.getX(), entity.getY(), entity.getZ(),
-                    entity.getYaw(), entity.getPitch(), headYaw,
-                    health, maxHealth, customName, flags));
         }
+    }
+
+    private static EntityFrame toFrame(Entity entity, long tick) {
+        int typeId = Registries.ENTITY_TYPE.getRawId(entity.getType());
+        float headYaw = entity.getYaw();
+        float health = -1.0f;
+        float maxHealth = -1.0f;
+        if (entity instanceof LivingEntity living) {
+            headYaw = living.getHeadYaw();
+            health = living.getHealth();
+            maxHealth = living.getMaxHealth();
+        }
+        int flags = 0;
+        if (entity.isGlowing()) {
+            flags |= EntityFrame.FLAG_GLOWING;
+        }
+        if (entity.isSneaking()) {
+            flags |= EntityFrame.FLAG_SNEAKING;
+        }
+        if (entity.isSprinting()) {
+            flags |= EntityFrame.FLAG_SPRINTING;
+        }
+        String customName = null;
+        if (entity.hasCustomName()) {
+            customName = Texts.toJson(entity.getCustomName());
+        }
+        return new EntityFrame(
+                entity.getId(), tick, typeId,
+                entity.getX(), entity.getY(), entity.getZ(),
+                entity.getYaw(), entity.getPitch(), headYaw,
+                health, maxHealth, customName, flags);
+    }
+
+    private static EntityDelta deltaBetween(EntityFrame prev, EntityFrame cur) {
+        return new EntityDelta(
+                cur.entityId,
+                (int) Math.round((cur.x - prev.x) * ReplayWriter.POS_SCALE),
+                (int) Math.round((cur.y - prev.y) * ReplayWriter.POS_SCALE),
+                (int) Math.round((cur.z - prev.z) * ReplayWriter.POS_SCALE),
+                (int) Math.round(shortestAngle(cur.yaw - prev.yaw) * ReplayWriter.ROT_SCALE),
+                (int) Math.round(shortestAngle(cur.pitch - prev.pitch) * ReplayWriter.ROT_SCALE),
+                (int) Math.round(shortestAngle(cur.headYaw - prev.headYaw) * ReplayWriter.ROT_SCALE));
+    }
+
+    private static float shortestAngle(float delta) {
+        float d = delta % 360.0f;
+        if (d >= 180.0f) {
+            d -= 360.0f;
+        } else if (d < -180.0f) {
+            d += 360.0f;
+        }
+        return d;
     }
 
     /** The seed is only metadata (replays render in the live world); resolve it best-effort. */

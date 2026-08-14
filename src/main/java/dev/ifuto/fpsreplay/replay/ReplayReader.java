@@ -32,6 +32,7 @@ public final class ReplayReader implements AutoCloseable {
         ReplayState state = new ReplayState(metadata);
         CameraFrame lastKey = null;
         long lastTick = Long.MIN_VALUE;
+        java.util.Map<Integer, EntityFrame> lastEntity = new java.util.HashMap<>();
 
         while (true) {
             int id = body.readUnsignedByte();
@@ -100,10 +101,37 @@ public final class ReplayReader implements AutoCloseable {
                 }
                 case ENTITY -> {
                     long tick = lastTick + IoUtil.readVarIntZigZag(body);
-                    int count = body.readInt();
-                    for (int i = 0; i < count; i++) {
+
+                    int newCount = body.readInt();
+                    for (int i = 0; i < newCount; i++) {
                         EntityFrame e = readEntity(tick);
                         state.entityTracks.computeIfAbsent(e.entityId, k -> new ArrayList<>()).add(e);
+                        lastEntity.put(e.entityId, e);
+                    }
+
+                    int deltaCount = body.readInt();
+                    for (int i = 0; i < deltaCount; i++) {
+                        int id = IoUtil.readVarInt(body);
+                        int dx = IoUtil.readVarIntZigZag(body);
+                        int dy = IoUtil.readVarIntZigZag(body);
+                        int dz = IoUtil.readVarIntZigZag(body);
+                        int dyaw = IoUtil.readVarIntZigZag(body);
+                        int dpitch = IoUtil.readVarIntZigZag(body);
+                        int dheadYaw = IoUtil.readVarIntZigZag(body);
+                        EntityFrame prev = lastEntity.get(id);
+                        if (prev != null) {
+                            EntityFrame cur = new EntityFrame(
+                                    id, tick, prev.typeId,
+                                    prev.x + dx / ReplayWriter.POS_SCALE,
+                                    prev.y + dy / ReplayWriter.POS_SCALE,
+                                    prev.z + dz / ReplayWriter.POS_SCALE,
+                                    prev.yaw + dyaw / (float) ReplayWriter.ROT_SCALE,
+                                    prev.pitch + dpitch / (float) ReplayWriter.ROT_SCALE,
+                                    prev.headYaw + dheadYaw / (float) ReplayWriter.ROT_SCALE,
+                                    prev.health, prev.maxHealth, prev.customName, prev.flags);
+                            state.entityTracks.computeIfAbsent(id, k -> new ArrayList<>()).add(cur);
+                            lastEntity.put(id, cur);
+                        }
                     }
                     lastTick = tick;
                 }
